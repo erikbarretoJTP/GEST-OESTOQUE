@@ -71,11 +71,15 @@ createInventory=function(){
 };
 
 // 6) Modo online: só líder/admin abre; quem não conta (gerente, CD) apenas consulta.
+window.JTP_ROT_MARK=function(){
+ try{const inv=inventories.find(i=>i.id===selectedInventory);if(!inv||inv.type!=='Rotativo')return;const set=window.JTP_ROT_PENDING?.()||new Set();
+  document.querySelectorAll('.inline-count').forEach(inp=>{const line=inv.lines[Number(inp.dataset.line)],p=!!line&&set.has(inv.id+'|'+line.sku),fb=inp.closest('tr')?.querySelector('.save-feedback');inp.classList.toggle('rot-pending',p);if(fb){if(p)fb.textContent='Enviando…';else if(fb.textContent==='Enviando…'||fb.textContent==='Salvo automaticamente')fb.textContent=window.JTP_CLOUD_READY?'Salvo no servidor':fb.textContent;}});}catch(e){}
+};
 const baseRender=render;
 render=function(){
  baseRender.apply(this,arguments);
  try{
-  markUnits();
+  markUnits();window.JTP_ROT_MARK();
   if(window.JTP_CLOUD_READY&&page===3){
    const u=typeof selectedUser==='function'?selectedUser():null,leader=!!u&&(u.role==='Admin'||u.role==='Líder de almoxarifado'),counter=!!u&&(leader||u.role==='Almoxarife');
    const nb=$('new');if(nb)nb.hidden=!leader;
