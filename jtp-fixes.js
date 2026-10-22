@@ -10,5 +10,5 @@
   box.querySelectorAll(':scope > .panel').forEach(function(p){var h=p.querySelector('h2');if(h&&h.textContent.trim()==='Contagens por dupla')p.remove();});
   return box.innerHTML;
  };
- if(typeof render==='function'){var r=render;render=function(){r.apply(this,arguments);if(typeof page!=='undefined'&&page===6){var s=document.getElementById('subtitle');if(s)s.textContent='Colaboradores, perfis e filiais.';}};}
+ if(typeof render==='function'){var r=render;render=function(){r.apply(this,arguments);var rb=document.getElementById('cloud-refresh');if(rb)rb.style.display=(typeof page!=='undefined'&&(page===3||page===4))?'':'none';if(typeof page!=='undefined'&&page===6){var s=document.getElementById('subtitle');if(s)s.textContent='Colaboradores, perfis e filiais.';}};}
 })();
