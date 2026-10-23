@@ -141,3 +141,13 @@ dialog#dialog label:has(>input[type=checkbox]){flex-direction:row;justify-conten
 .st-foot{display:flex;flex-wrap:wrap;gap:.2rem .8rem;align-items:center;color:var(--muted);font-size:.82rem}
 .st-who b{color:var(--navy)}.st-who.muted{font-style:italic}
 @media(max-width:700px){.street-grid{grid-template-columns:1fr;padding:.6rem}}
+
+/* ===== Resumo de desvios do rotativo ===== */
+dialog#dialog.rot-summary-dialog{width:min(980px,96vw)}
+.rot-summary-dialog .rot-sum-table{max-height:46vh;overflow:auto;border:1px solid var(--line);border-radius:12px}
+.rot-summary-dialog .rot-sum-table table{min-width:760px}
+.rot-summary-dialog .dev-reason{width:100%;min-width:180px}
+.rot-summary-dialog .street-card small{color:var(--muted);text-transform:uppercase;font-size:.7rem;letter-spacing:.04em}
+@media(max-width:700px){.rot-summary-dialog .street-grid{grid-template-columns:1fr 1fr!important}}
+dialog#dialog.rot-summary-dialog{width:min(980px,96vw)!important;max-width:96vw!important}
+dialog#dialog.rot-summary-dialog form{padding:1.6rem 1.8rem!important;box-sizing:border-box}

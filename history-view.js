@@ -1,0 +1,25 @@
+// Histórico de inventários oficiais (somente consulta). Dados em jtp_history (Supabase).
+(function(){
+const prev=render;let view=null; // null | {list} | {inv}
+const fmt=d=>{try{return new Date(d+'T12:00:00').toLocaleDateString('pt-BR');}catch{return d;}};
+function num(v){return v===''||v==null?null:Number(String(v).replace(',','.'));}
+function stats(rows){let ok=0,div=0,pend=0;for(const r of rows){const f=r[14]||'';if(/Pendente/i.test(f))pend++;else if(/Confirmado/i.test(f))ok++;else div++;}return{ok,div,pend,total:rows.length};}
+function listHTML(list){return `<div class="panel"><div class="panel-heading"><h2>Histórico de inventários</h2><small>Somente consulta</small></div>${list.length?`<div class="street-grid">${list.map(h=>`<div class="street-card"><header><h3>${esc(h.number)}</h3><span>${fmt(h.date)}</span></header><div class="st-foot">${esc(h.title)} · ${h.items} itens</div><button class="primary" data-hist="${esc(h.id)}">Abrir</button></div>`).join('')}</div>`:'<p class="source-note">Nenhum inventário no histórico.</p>'}<div class="actions" style="padding:1rem"><button class="secondary" id="hist-back">← Voltar</button></div></div>`;}
+function invHTML(d,q,f){const rows=d.rows,s=stats(rows);const m=rows.filter(r=>{if(f==='ok'&&!/Confirmado/i.test(r[14]))return false;if(f==='div'&&/Confirmado|Pendente/i.test(r[14]))return false;if(f==='pend'&&!/Pendente/i.test(r[14]))return false;if(!q)return true;return(r[2]+' '+r[3]+' '+r[4]).toLowerCase().includes(q);});const shown=m.slice(0,300);
+return `<div class="panel"><div class="panel-heading"><h2>${esc(d.number)} · ${fmt(d.date)}</h2><small>${esc(d.title)} · somente consulta</small></div>
+<div class="street-grid" style="grid-template-columns:repeat(4,1fr)"><div class="street-card"><small>Itens</small><h3>${s.total}</h3></div><div class="street-card full"><small>Confirmados</small><h3>${s.ok}</h3></div><div class="street-card"><small>Divergências resolvidas</small><h3>${s.div}</h3></div><div class="street-card"><small>Sem 2ª contagem</small><h3>${s.pend}</h3></div></div>
+<div class="actions" style="padding:0 1rem 1rem;display:flex;gap:.6rem;flex-wrap:wrap"><input id="hist-q" placeholder="Buscar código, descrição ou localização" value="${esc(q||'')}" style="flex:1;min-width:220px"><select id="hist-f"><option value="">Todos</option><option value="ok"${f==='ok'?' selected':''}>Confirmados</option><option value="div"${f==='div'?' selected':''}>Divergências resolvidas</option><option value="pend"${f==='pend'?' selected':''}>Sem 2ª contagem</option></select><button class="secondary" id="hist-csv">↓ Exportar</button><button class="secondary" id="hist-back">← Voltar</button></div>
+${table(['LOCALIZAÇÃO','CÓDIGO / DESCRIÇÃO','1ª','2ª','3ª','RESULTADO'],shown.map(r=>`<tr><td>${esc(r[2])}</td><td>${esc(r[3])}<small>${esc(r[4])}</small></td><td>${esc(r[5])}<small>${esc(r[6])}</small></td><td>${esc(r[8])}<small>${esc(r[9])}</small></td><td>${esc(r[11])}<small>${esc(r[12])}</small></td><td><b>${esc(r[15])}</b><small>${esc(r[14])}</small></td></tr>`))}
+<p class="source-note">${m.length>300?'Mostrando 300 de '+m.length+'. Use a busca ou exporte tudo.':m.length+' itens.'}</p></div>`;}
+function exportRows(d){const k=['Rua','Prédio','Localização','Código','Descrição','1ª contagem','Quem contou 1ª','Data 1ª','2ª contagem','Quem contou 2ª','Data 2ª','3ª contagem','Quem contou 3ª','Data 3ª','Conferência final','Resultado','Unidade'];return d.rows.map(r=>Object.fromEntries(k.map((n,i)=>[n,r[i]])));}
+async function open(){try{const list=await JTP_RPC('jtp_history_list');view={list};render();}catch(e){toast(e.message||'Histórico indisponível. Rode a parte 6 do SQL.');}}
+async function openInv(id){try{const d=await JTP_RPC('jtp_history_get',{p_id:id});view={inv:d,q:'',f:''};render();}catch(e){toast(e.message);}}
+function paint(){const c=$('content');if(view.list){c.innerHTML=listHTML(view.list);c.querySelectorAll('[data-hist]').forEach(b=>b.onclick=()=>openInv(b.dataset.hist));}else{c.innerHTML=invHTML(view.inv,view.q,view.f);const rq=()=>{view.q=$('hist-q').value.trim().toLowerCase();view.f=$('hist-f').value;const pos=$('hist-q').selectionStart;paint();$('hist-q').focus();$('hist-q').setSelectionRange(pos,pos);};$('hist-q').oninput=rq;$('hist-f').onchange=rq;$('hist-csv').onclick=()=>exportCSV(exportRows(view.inv),'historico-'+view.inv.number);}
+$('hist-back').onclick=()=>{if(view.inv&&!view.fromList){view={list:null};open();}else{view=null;render();}};}
+render=function(){
+  if(page!==4)view=null;
+  if(view){prev.apply(this,arguments);document.querySelector('.filters').hidden=true;$('new').hidden=true;$('title').textContent='Histórico de inventários';paint();return;}
+  prev.apply(this,arguments);
+  if(page===4&&window.JTP_RPC&&!$('content').querySelector('#hist-open')){const bar=document.createElement('div');bar.className='actions';bar.style.cssText='display:flex;justify-content:flex-end;margin-bottom:.6rem';bar.innerHTML='<button class="secondary" id="hist-open">Histórico</button>';$('content').prepend(bar);$('hist-open').onclick=open;}
+};
+})();
