@@ -167,3 +167,5 @@ dialog#dialog.rot-summary-dialog form{padding:1.6rem 1.8rem!important;box-sizing
 .imp-msg{margin:0;font-size:.9rem}.imp-msg.ok{color:#1f6b4c}.imp-msg.err{color:#8a3a26}
 .imp-check{display:flex;gap:.5rem;align-items:center;font-size:.9rem}
 .mail-emails{width:100%;min-width:240px}
+.stock-trend .trend-reference svg{height:auto;max-height:320px}.stock-trend .trend-bar-label{font-size:8px}
+.stock-trend .trend-axis{font-size:9px}.stock-overview-grid .official-history-panel{margin:0;align-self:stretch}
