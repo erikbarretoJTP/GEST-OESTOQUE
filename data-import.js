@@ -7,7 +7,7 @@ const ADDR=/^[^\r\n]+\.[A-Za-zÀ-ÿ0-9_-]+\.[A-Za-zÀ-ÿ0-9_-]+\.[A-Za-zÀ-ÿ0-9
 const colIdx=l=>String(l||'').toUpperCase().split('').reduce((n,c)=>n*26+c.charCodeAt(0)-64,0)-1;
 const brMoney=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
 const brDT=iso=>{try{return new Date(iso).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'});}catch{return '';}};
-const st={mail:null,saldo:null,wms:null,cat:null,wmsUnit:'300',busy:false,msg:{}};
+const st={mail:null,saldo:null,wms:null,cat:null,wmsUnit:'300',adj:null,adjUnit:'300',busy:false,msg:{}};
 const code=v=>{if(typeof v==='number'&&Number.isFinite(v))return Number.isInteger(v)?String(v):String(v);const s=String(v??'').trim();return !s||s==='0'||s==='-'||s.startsWith('#')?null:s;};
 const skuOf=v=>typeof v==='number'?String(Math.trunc(v)):String(v??'').trim();
 function sheetRows(ws){const r=XLSX.utils.decode_range(ws['!ref']||'A1');r.s.r=0;r.s.c=0;ws['!ref']=XLSX.utils.encode_range(r);return XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null,blankrows:true});}
@@ -54,7 +54,7 @@ async function parseSaldos(fileList){
   const errors=files.flatMap(f=>f.errors);
   const seen={};files.forEach(f=>{if(seen[f.day])errors.push('Dois arquivos com a mesma data ('+br(f.day)+'): '+seen[f.day]+' e '+f.file);seen[f.day]=f.file;});
   const latest=files[files.length-1];
-  if(latest)latest.units.forEach(u=>{const now=currentCount('stock',u.unit);u.now=now;u.drop=now>0&&u.records<now*.75;});
+  if(latest){latest.units.forEach(u=>{const now=currentCount('stock',u.unit);u.now=now;u.drop=now>0&&u.records<now*.75;});const m=String(sourceMeta.stockDate||'').match(/^(\d{2})\/(\d{2})\/(\d{4})$/),curIso=m?m[3]+'-'+m[2]+'-'+m[1]:'';latest.sameDay=!!curIso&&latest.day===curIso;latest.older=!!curIso&&latest.day<curIso;latest.curBr=m?m[0]:'';}
   return{files,latest,errors};
 }
 // ---------- leitura: WMS ----------
@@ -105,6 +105,32 @@ async function publishWms(){const r=st.wms;if(!r||r.errors.length)return;await p
 async function publishCat(){const r=st.cat;if(!r||r.errors.length)return;await put('catalog','*',r.diff,{file:r.file,total:r.total,added:r.added,changed:r.changed,by:selectedUser()?.name||''});}
 
 
+// ---------- ajuste de inventário (SAP) -> acuracidade ----------
+async function parseAdj(file,unit,opt){
+  const wb=await readBook(file),rows=sheetRows(wb.Sheets[wb.SheetNames[0]]),h=(rows[0]||[]).map(x=>String(x||'').trim().toLowerCase()),errors=[];
+  const ix=(...ns)=>{for(const n of ns){const i=h.findIndex(x=>x.startsWith(n));if(i>=0)return i;}return -1;};
+  const c={sku:ix('nº do item','n° do item','no do item','código'),desc:ix('descrição'),stock:ix('quantidade em estoque'),dev:ix('desvio'),price:ix('preço'),tot:ix('total'),dep:ix('depósito'),cnt:ix('quantidade contada')};
+  ['sku','stock','dev','price','tot'].forEach(k=>{if(c[k]<0)errors.push('Coluna não encontrada: '+{sku:'Nº do item',stock:'Quantidade em estoque na data da contagem',dev:'Desvio',price:'Preço',tot:'Total'}[k]);});
+  let items=0,div=0,neg=0,pos=0,stock=0;const deps={},top=[],seen=new Set();
+  if(!errors.length)for(const r of rows.slice(1)){const sku=skuOf(r[c.sku]);if(!sku)continue;
+    if(seen.has(sku)){errors.push('Item repetido no arquivo: '+sku);if(errors.length>12)break;continue;}seen.add(sku);
+    const q=Number(r[c.stock])||0,p=Number(r[c.price])||0,dv=Number(r[c.dev])||0,t=Number(r[c.tot])||dv*p;
+    items++;stock+=q*p;if(c.dep>=0){const k=String(r[c.dep]);deps[k]=(deps[k]||0)+1;}
+    if(Math.abs(dv)>1e-9){div++;if(t<0)neg+=t;else pos+=t;top.push([sku,String(r[c.desc]||'').slice(0,60),Math.round(dv*1e4)/1e4,Math.round(t*100)/100]);}}
+  top.sort((a,b)=>Math.abs(b[3])-Math.abs(a[3]));
+  const r2=n=>Math.round(n*100)/100;
+  return{file:file.name,unit,items,div,neg:r2(neg),pos:r2(pos),stock:r2(stock),deps,top:top.slice(0,30),errors:errors.slice(0,12)};
+}
+async function publishAdj(){const r=st.adj;if(!r||r.errors.length)return;const g=id=>$(id)?.value||'';
+  await JTP_RPC('jtp_adjust_put',{p:{branch:r.unit,day:g('imp-adj-day'),event:g('imp-adj-event'),negative:r.neg,positive:r.pos,without_wms:g('imp-adj-nowms')===''?null:Number(g('imp-adj-nowms').replace(',','.')),stock_value:r.stock,items:r.items,divergent:r.div,source:r.file,top:r.top}});}
+function adjPreview(){const r=st.adj;if(!r)return '';const net=r.neg+r.pos,acc=r.stock?100-Math.abs(net)/r.stock*100:null,gross=r.stock?100-(Math.abs(r.neg)+r.pos)/r.stock*100:null,p=v=>v==null?'—':v.toLocaleString('pt-BR',{maximumFractionDigits:1})+'%';
+  return `<div class="imp-sum"><b>${esc(r.file)}</b> · ${num(r.items)} itens · ${num(r.div)} com desvio${Object.keys(r.deps).length?' · depósitos '+esc(Object.keys(r.deps).join(', ')):''}</div>`
+   +table(['AJUSTE NEGATIVO','AJUSTE POSITIVO','DESVIO LÍQUIDO','ESTOQUE NA DATA','ACURACIDADE'],[`<tr><td>${brMoney(r.neg)}</td><td>${brMoney(r.pos)}</td><td>${brMoney(net)}</td><td>${brMoney(r.stock)}</td><td><b>${p(acc)}</b></td></tr>`])
+   +`<p class="source-note">Acuracidade = 100% − |desvio líquido| ÷ estoque na data.</p>`
+   +errs(r.errors)+`<div class="actions"><button class="primary" id="imp-adj-go" ${r.errors.length?'disabled':''}>Publicar acuracidade de ${esc(NAMES[r.unit])}</button></div>`;}
+function adjList(){const l=(window.JTP_ADJ||[]).filter(a=>a.id);if(!l.length)return '<p class="source-note">Nenhum ajuste publicado ainda.</p>';
+  return table(['GARAGEM','DATA','EVENTO','NEGATIVO','POSITIVO','ESTOQUE','',''],l.slice().reverse().map(a=>`<tr><td>${esc(a.unit)} · ${esc(NAMES[a.unit]||'')}</td><td>${esc(br(String(a.date).slice(0,10)))}</td><td>${esc(a.event)}<small>${esc(a.source||'')}</small></td><td>${brMoney(a.negative)}</td><td>${brMoney(a.positive)}</td><td>${brMoney(a.stockValue)}</td><td></td><td><button class="secondary" data-adj-del="${a.id}">Excluir</button></td></tr>`));}
+
 // ---------- e-mail dos itens sem WMS ----------
 function noWmsReport(u){
   const ii=items.filter(i=>i.unit===u),no=ii.filter(i=>!(i.addresses&&i.addresses.length)).sort((a,b)=>Number(b.totalValue)-Number(a.totalValue));
@@ -148,9 +174,10 @@ function saldoPreview(){const r=st.saldo;if(!r)return '';
   const rows=r.files.map(f=>`<tr><td><b>${esc(br(f.day))}</b></td><td>${esc(f.file)}<small>${esc(f.format)}</small></td>${UNITS.map(u=>{const x=f.units.find(y=>y.unit===u);return x?`<td>${num(x.records)}<small>${brMoney(x.value)}${x.drop?' · <span class="imp-warn">queda &gt;25%</span>':''}</small></td>`:'<td>—</td>';}).join('')}<td>${f===L?'<b>Saldo atual</b>':'Histórico'}</td></tr>`);
   return table(head,rows)
    +(ex.length?`<p class="source-note">Depósitos fora do site (ignorados): ${ex.map(k=>esc(k)+' ('+L.excluded[k].n+' itens)').join(', ')}.</p>`:'')
+   +(L&&L.sameDay?`<p class="source-note">Já existe saldo de ${esc(L.curBr)}: este arquivo vai <b>substituir</b> o saldo desse dia.</p>`:'')
    +(L&&Object.keys(L.names||{}).length?`<p class="source-note">O arquivo traz descrições: itens novos entram na lista de itens automaticamente.</p>`:'')
    +errs(r.errors)
-   +(L&&L.units.some(u=>u.drop)?'<label class="imp-check"><input type="checkbox" id="imp-force"> Confirmo que a queda de itens é esperada</label>':'')
+   +(L&&(L.units.some(u=>u.drop)||L.older)?'<label class="imp-check"><input type="checkbox" id="imp-force"> '+(L.older?'Confirmo que este saldo é MAIS ANTIGO que o atual ('+esc(L.curBr)+') e deve substituí-lo':'Confirmo que a queda de itens é esperada')+'</label>':'')
    +`<div class="actions"><button class="primary" id="imp-saldo-go" ${r.errors.length?'disabled':''}>${r.files.length>1?'Publicar: '+esc(br(L.day))+' como saldo atual + '+(r.files.length-1)+' dia(s) no histórico':'Publicar saldo'}</button></div>`;}
 function wmsPreview(){const r=st.wms;if(!r)return '';
   return `<div class="imp-sum"><b>${esc(r.file)}</b> · aba ${esc(r.sheet)}${r.date?' · data '+esc(r.date):''}</div>`+table(['POSIÇÕES','OCUPADAS','VAGAS','CÓDIGOS','COM MAIS DE 1 ENDEREÇO','LINHAS ATUAIS'],[`<tr><td>${num(r.positions)}</td><td>${num(r.occupied)}</td><td>${num(r.vacant)}</td><td>${num(r.codes)}</td><td>${num(r.multi)}</td><td>${num(r.now||0)}</td></tr>`])+errs(r.errors)+`<div class="actions"><button class="primary" id="imp-wms-go" ${r.errors.length?'disabled':''}>Publicar WMS de ${esc(NAMES[r.unit])}</button></div>`;}
@@ -171,6 +198,9 @@ function html(){
      ${msg('wms')}<div id="imp-wms-prev">${wmsPreview()}</div>`)
   +panel('3 · Lista de itens (descrições)','Relatório com "Nº do item" e "Descrição do item" · só entram itens novos ou alterados',
     `<input type="file" id="imp-cat-file" accept=".xlsx,.xlsm">${msg('cat')}<div id="imp-cat-prev">${catPreview()}</div>`)
+  +panel('4 · Ajuste do inventário (SAP)','Planilha de lançamento do ajuste · calcula a acuracidade do inventário oficial',
+    `<div class="imp-row"><label>GARAGEM<select id="imp-adj-unit">${UNITS.map(u=>`<option value="${u}" ${u===st.adjUnit?'selected':''}>${u} · ${esc(NAMES[u])}</option>`).join('')}</select></label><label>DATA DO INVENTÁRIO<input type="date" id="imp-adj-day"></label><label>NOME DO EVENTO<input id="imp-adj-event" value="Inventário oficial"></label><label>ITENS SEM WMS (R$, opcional)<input id="imp-adj-nowms" inputmode="decimal" placeholder="só informativo"></label></div>
+     <input type="file" id="imp-adj-file" accept=".xlsx,.xlsm">${msg('adj')}<div id="imp-adj-prev">${adjPreview()}</div><h3 class="imp-h3">Ajustes publicados</h3>${adjList()}`)
   +panel('Histórico de importações','Últimas 25',logTable());
 }
 function wmsOpts(){const g=id=>$(id)?.value;return{sheet:g('imp-sheet'),start:Number(g('imp-start'))||1,addr:g('imp-addr'),sku:g('imp-sku')};}
@@ -181,12 +211,16 @@ function bind(){
   $('imp-wms-file').onchange=e=>{const f=e.target.files[0];if(!f)return;st.wms=null;st.wmsFile=f;run('wms',async()=>{st.wms=await parseWms(f,st.wmsUnit,wmsOpts());},'Arquivo lido. Confira o resumo e publique.');};
   ['imp-sheet','imp-start','imp-addr','imp-sku'].forEach(id=>{$(id).onchange=()=>{if(st.wmsFile)run('wms',async()=>{st.wms=await parseWms(st.wmsFile,st.wmsUnit,wmsOpts());},'Arquivo lido de novo com os ajustes.');};});
   $('imp-cat-file').onchange=e=>{const f=e.target.files[0];if(!f)return;st.cat=null;run('cat',async()=>{st.cat=await parseCat(f);},'Arquivo lido. Confira o resumo e publique.');};
+  $('imp-adj-unit').onchange=e=>{st.adjUnit=e.target.value;if(st.adjFile)run('adj',async()=>{st.adj=await parseAdj(st.adjFile,st.adjUnit);});};
+  $('imp-adj-file').onchange=e=>{const f=e.target.files[0];if(!f)return;st.adj=null;st.adjFile=f;run('adj',async()=>{st.adj=await parseAdj(f,st.adjUnit);},'Arquivo lido. Informe a data e publique.');};
+  if($('imp-adj-go'))$('imp-adj-go').onclick=()=>{if(!$('imp-adj-day').value){st.msg.adj={t:'Informe a data do inventário.',err:true};paint();return;}run('adj',async()=>{await publishAdj();st.adj=null;st.adjFile=null;await done();},'Acuracidade publicada. Já aparece no dashboard.');};
+  document.querySelectorAll('[data-adj-del]').forEach(b=>b.onclick=()=>{if(confirm('Excluir este ajuste?'))run('adj',async()=>{await JTP_RPC('jtp_adjust_delete',{p_id:Number(b.dataset.adjDel)});await done();},'Ajuste excluído.');});
   const done=async()=>{await window.JTP_DATA.reload();};
-  if($('imp-saldo-go'))$('imp-saldo-go').onclick=()=>{if(st.saldo.latest.units.some(u=>u.drop)&&!$('imp-force')?.checked){st.msg.saldo={t:'Marque a confirmação da queda de itens.',err:true};paint();return;}run('saldo',async()=>{const units=st.saldo.latest.units.map(u=>u.unit);await publishSaldo();st.saldo=null;await done();});};
+  if($('imp-saldo-go'))$('imp-saldo-go').onclick=()=>{if((st.saldo.latest.units.some(u=>u.drop)||st.saldo.latest.older)&&!$('imp-force')?.checked){st.msg.saldo={t:'Marque a confirmação acima para continuar.',err:true};paint();return;}run('saldo',async()=>{const units=st.saldo.latest.units.map(u=>u.unit);await publishSaldo();st.saldo=null;await done();});};
   if($('imp-wms-go'))$('imp-wms-go').onclick=()=>run('wms',async()=>{await publishWms();st.wms=null;st.wmsFile=null;await done();},'WMS publicado. Todos os aparelhos recebem em até 1 minuto.');
   if($('imp-cat-go'))$('imp-cat-go').onclick=()=>run('cat',async()=>{await publishCat();st.cat=null;await done();},'Lista de itens publicada.');
 }
-function paint(){if(page!==PAGE)return;const keep={};['imp-saldo-file','imp-wms-file','imp-cat-file'].forEach(id=>{keep[id]=$(id)?.files;});
+function paint(){if(page!==PAGE)return;const keep={};['imp-saldo-file','imp-wms-file','imp-cat-file','imp-adj-file'].forEach(id=>{keep[id]=$(id)?.files;});
   const y=window.scrollY,keyOf=e=>e.id||(e.className?e.className.split(' ')[0]+'|'+(e.dataset.b||''):''),snap={};
   document.querySelectorAll('#content input:not([type=file]),#content select').forEach(e=>{const k=keyOf(e);if(k)snap[k]=e.type==='checkbox'?e.checked:e.value;});
   $('content').innerHTML=html();

@@ -1,6 +1,6 @@
-// Quem não é Admin enxerga somente "Inventário rotativo" e "Inventário oficial".
+// Quem não é Admin enxerga somente "Inventário oficial".
 (function(){
-const ALLOWED=[3,4],HOME=4;
+const ALLOWED=[4],HOME=4;
 const restricted=()=>{try{return !!currentOperator()&&!isAdmin();}catch{return false;}};
 const prev=render;
 render=function(){

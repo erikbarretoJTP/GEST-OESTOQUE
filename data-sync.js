@@ -74,13 +74,17 @@ function apply(data){
     window.JTP_SOURCE.stockHistory=Object.keys(days).sort().map(k=>days[k]);
   }
 }
+async function loadAdj(){try{const l=await JTP_RPC('jtp_adjust_list');window.JTP_ADJ=l;
+  for(let i=reportedAccuracy.length-1;i>=0;i--)if(reportedAccuracy[i].imported)reportedAccuracy.splice(i,1);
+  l.forEach(a=>reportedAccuracy.push({unit:a.unit,event:a.event,date:String(a.date).slice(0,10),negative:Number(a.negative),positive:Number(a.positive),withoutWMS:a.withoutWMS==null?undefined:Number(a.withoutWMS),stockValue:Number(a.stockValue),imported:true}));
+  reportedAccuracy.sort((x,y)=>String(y.date).localeCompare(String(x.date)));}catch(e){}}
 async function status(){return JTP_RPC('jtp_data_status');}
 const keyOf=st=>(st.sets||[]).map(s=>s.kind+'|'+s.branch+'|'+s.at).sort().join(';');
 async function load(force){
   if(D.busy)return;D.busy=true;
   try{
     const st=await status();D.status=st;const k=keyOf(st);
-    if(force||k!==D.key){const data=await JTP_RPC('jtp_data_get');apply(data);D.key=k;try{render();}catch(e){}}
+    if(force||k!==D.key){const data=await JTP_RPC('jtp_data_get');apply(data);D.key=k;await loadAdj();try{render();}catch(e){}}
   }catch(e){D.error=e.message;}finally{D.busy=false;}
 }
 D.reload=()=>load(true);D.status_=status;
