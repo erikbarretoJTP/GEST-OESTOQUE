@@ -8,7 +8,7 @@ render=function(){
   prev.apply(this,arguments);
   try{
     // filtros
-    const gp=document.querySelector('.group-picker');if(gp)gp.hidden=page!==0;
+    const gp=document.querySelector('.group-picker');if(gp)gp.hidden=page!==0&&page!==1&&page!==5;
     const ul=$('unit')?.closest('label');if(ul&&page!==7)ul.hidden=false;
     if(page!==3&&page!==4)return;
     const inv=inventories.find(i=>i.id===selectedInventory);
