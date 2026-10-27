@@ -151,3 +151,19 @@ dialog#dialog.rot-summary-dialog{width:min(980px,96vw)}
 @media(max-width:700px){.rot-summary-dialog .street-grid{grid-template-columns:1fr 1fr!important}}
 dialog#dialog.rot-summary-dialog{width:min(980px,96vw)!important;max-width:96vw!important}
 dialog#dialog.rot-summary-dialog form{padding:1.6rem 1.8rem!important;box-sizing:border-box}
+.inventory-clock .clock-times{display:block;margin-top:2px;color:var(--muted);font-size:.78rem}
+.rot-summary-dialog .dev-reason{min-width:300px}
+.rot-summary-dialog .rot-sum-table td:last-child{min-width:320px}
+
+/* ===== Importação de dados (admin) ===== */
+.imp-body{padding:1rem 1.2rem;display:grid;gap:.9rem}
+.imp-row{display:flex;flex-wrap:wrap;gap:.8rem;align-items:flex-end}
+.imp-row label{display:grid;gap:.25rem;font-size:.75rem;font-weight:700;letter-spacing:.04em;color:var(--muted);text-transform:uppercase;min-width:150px}
+.imp-adv summary{cursor:pointer;color:var(--muted);font-size:.85rem;margin:.2rem 0 .6rem}
+.imp-sum{color:var(--navy)}
+.imp-errors{border:1px solid #e9b3a6;background:#fdf1ee;color:#8a3a26;border-radius:10px;padding:.7rem 1rem}
+.imp-errors ul{margin:.4rem 0 0 1.1rem;padding:0}
+.imp-warn{color:#8a5b00}
+.imp-msg{margin:0;font-size:.9rem}.imp-msg.ok{color:#1f6b4c}.imp-msg.err{color:#8a3a26}
+.imp-check{display:flex;gap:.5rem;align-items:center;font-size:.9rem}
+.mail-emails{width:100%;min-width:240px}
