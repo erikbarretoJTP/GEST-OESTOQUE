@@ -2,7 +2,7 @@
 (function(){
 const PAGE=8,UNITS=['300','200','400','123','2002'];
 const NAMES={'300':'Bragança Paulista','200':'Porto Velho','400':'Embu Guaçu','123':'Rio Branco','2002':'Centro de Distribuição'};
-const WMS_CFG={'300':{sheet:'Localização',start:6,addr:'G',sku:'H'},'2002':{sheet:'WMS CD',start:3,addr:'G',sku:'I'},'200':{sheet:'Localização',start:3,addr:'G',sku:'H'},'123':{sheet:'Localização',start:6,addr:'G',sku:'H'},'400':{sheet:'Localização',start:2,addr:'G',sku:'H'}};
+const WMS_CFG={'300':{sheet:'Localização',start:6,addr:'G',sku:'H'},'2002':{sheet:'WMS CD',start:3,addr:'G',sku:'I'},'200':{sheet:'Localização',start:3,addr:'G',sku:'H'},'123':{sheet:'Localização',start:6,addr:'G',sku:'H'},'400':{sheet:'Localização',start:6,addr:'G',sku:'I'}};
 const ADDR=/^[^\r\n]+\.[A-Za-zÀ-ÿ0-9_-]+\.[A-Za-zÀ-ÿ0-9_-]+\.[A-Za-zÀ-ÿ0-9_-]+$/;
 const colIdx=l=>String(l||'').toUpperCase().split('').reduce((n,c)=>n*26+c.charCodeAt(0)-64,0)-1;
 const brMoney=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
