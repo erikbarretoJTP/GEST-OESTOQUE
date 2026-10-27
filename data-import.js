@@ -2,7 +2,7 @@
 (function(){
 const PAGE=8,UNITS=['300','200','400','123','2002'];
 const NAMES={'300':'Bragança Paulista','200':'Porto Velho','400':'Embu Guaçu','123':'Rio Branco','2002':'Centro de Distribuição'};
-const WMS_CFG={'300':{sheet:'Localização',start:6,addr:'G',sku:'H'},'2002':{sheet:'WMS CD',start:3,addr:'G',sku:'I'},'200':{sheet:'Localização',start:3,addr:'G',sku:'H'},'123':{sheet:'Localização',start:6,addr:'G',sku:'H'}};
+const WMS_CFG={'300':{sheet:'Localização',start:6,addr:'G',sku:'H'},'2002':{sheet:'WMS CD',start:3,addr:'G',sku:'I'},'200':{sheet:'Localização',start:3,addr:'G',sku:'H'},'123':{sheet:'Localização',start:6,addr:'G',sku:'H'},'400':{sheet:'Localização',start:2,addr:'G',sku:'H'}};
 const ADDR=/^[^\r\n]+\.[A-Za-zÀ-ÿ0-9_-]+\.[A-Za-zÀ-ÿ0-9_-]+\.[A-Za-zÀ-ÿ0-9_-]+$/;
 const colIdx=l=>String(l||'').toUpperCase().split('').reduce((n,c)=>n*26+c.charCodeAt(0)-64,0)-1;
 const brMoney=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
@@ -60,7 +60,7 @@ async function parseSaldos(fileList){
 // ---------- leitura: WMS ----------
 async function parseWms(file,unit,opt){
   const wb=await readBook(file),cfg=Object.assign({},WMS_CFG[unit]||{sheet:'Localização',start:2,addr:'G',sku:'H'},opt||{});
-  const name=wb.SheetNames.find(n=>n===cfg.sheet)||wb.SheetNames.find(n=>n.trim().toLowerCase()===String(cfg.sheet).toLowerCase());
+  const name=wb.SheetNames.find(n=>n===cfg.sheet)||wb.SheetNames.find(n=>n.trim().toLowerCase()===String(cfg.sheet).toLowerCase())||(wb.SheetNames.length===1?wb.SheetNames[0]:null);
   if(!name)throw Error('Aba "'+cfg.sheet+'" não encontrada. Abas do arquivo: '+wb.SheetNames.join(', ')+'. Ajuste o nome da aba em "Ajustes".');
   const rows=sheetRows(wb.Sheets[name]),ac=colIdx(cfg.addr),sc=colIdx(cfg.sku),out=[],errors=[];let date='';const seen={},mapping={};
   rows.forEach((r,i)=>{const rn=i+1;
@@ -193,7 +193,7 @@ function html(){
   +panel('1 · Saldo em estoque (SAP)','Relatório "Saldo JTP" em Excel · atualiza todas as garagens do arquivo',
     `<input type="file" id="imp-saldo-file" accept=".xlsx,.xlsm" multiple><p class="source-note">Pode escolher vários dias de uma vez: o mais recente vira o saldo atual e os outros entram no histórico de valor.</p>${msg('saldo')}<div id="imp-saldo-prev">${saldoPreview()}</div>`)
   +panel('2 · Mapa WMS','Uma garagem por vez · planilha oficial do WMS',
-    `<div class="imp-row"><label>GARAGEM<select id="imp-wms-unit">${['300','200','123','2002'].map(u=>`<option value="${u}" ${u===st.wmsUnit?'selected':''}>${u} · ${esc(NAMES[u])}</option>`).join('')}</select></label><label>ARQUIVO<input type="file" id="imp-wms-file" accept=".xlsx,.xlsm"></label></div>
+    `<div class="imp-row"><label>GARAGEM<select id="imp-wms-unit">${UNITS.map(u=>`<option value="${u}" ${u===st.wmsUnit?'selected':''}>${u} · ${esc(NAMES[u])}</option>`).join('')}</select></label><label>ARQUIVO<input type="file" id="imp-wms-file" accept=".xlsx,.xlsm"></label></div>
      <details class="imp-adv"><summary>Ajustes do layout (só se a planilha mudou)</summary><div class="imp-row"><label>ABA<input id="imp-sheet" value="${esc(w.sheet||'')}"></label><label>LINHA INICIAL<input id="imp-start" type="number" min="1" value="${w.start||2}"></label><label>COLUNA DO ENDEREÇO<input id="imp-addr" maxlength="2" value="${esc(w.addr||'G')}"></label><label>COLUNA DO CÓDIGO<input id="imp-sku" maxlength="2" value="${esc(w.sku||'H')}"></label></div></details>
      ${msg('wms')}<div id="imp-wms-prev">${wmsPreview()}</div>`)
   +panel('3 · Lista de itens (descrições)','Relatório com "Nº do item" e "Descrição do item" · só entram itens novos ou alterados',
