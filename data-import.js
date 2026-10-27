@@ -11,7 +11,8 @@ const st={mail:null,saldo:null,wms:null,cat:null,wmsUnit:'300',busy:false,msg:{}
 const code=v=>{if(typeof v==='number'&&Number.isFinite(v))return Number.isInteger(v)?String(v):String(v);const s=String(v??'').trim();return !s||s==='0'||s==='-'||s.startsWith('#')?null:s;};
 const skuOf=v=>typeof v==='number'?String(Math.trunc(v)):String(v??'').trim();
 function sheetRows(ws){const r=XLSX.utils.decode_range(ws['!ref']||'A1');r.s.r=0;r.s.c=0;ws['!ref']=XLSX.utils.encode_range(r);return XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null,blankrows:true});}
-async function readBook(file){if(typeof XLSX==='undefined')throw Error('Leitor de Excel não carregou. Atualize a página (Ctrl+Shift+R).');const buf=await file.arrayBuffer();return XLSX.read(buf,{type:'array',cellDates:true});}
+async function readBook(file){if(typeof XLSX==='undefined'){let code='?';try{const r=await fetch('xlsx-lib.js',{method:'HEAD',cache:'no-store'});code=r.status;}catch{}
+    throw Error(code===404?'O arquivo xlsx-lib.js NÃO está no site (erro 404). Envie esse arquivo para o GitHub e espere o deploy.':'Leitor de Excel não carregou (código '+code+'). Atualize a página com Ctrl+Shift+R; se continuar, confira o arquivo xlsx-lib.js no GitHub.');}const buf=await file.arrayBuffer();return XLSX.read(buf,{type:'array',cellDates:true});}
 function toISO(v){if(v instanceof Date&&!isNaN(v)){const d=new Date(v.getTime()+12*3600e3);return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');}
   if(typeof v==='number'){const d=new Date(Math.round((v-25569)*86400e3)+12*3600e3);return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');}
   const m=String(v||'').match(/(\d{2})\/(\d{2})\/(\d{4})/);return m?m[3]+'-'+m[2]+'-'+m[1]:'';}
