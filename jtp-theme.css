@@ -172,7 +172,7 @@ dialog#dialog.rot-summary-dialog form{padding:1.6rem 1.8rem!important;box-sizing
 .stock-trend .trend-axis{font-size:9px}.stock-overview-grid .official-history-panel{margin:0;align-self:stretch}
 
 /* ===== Padrão visual Grupo JTP (paleta + formulários) ===== */
-aside{background:var(--navy)!important;box-shadow:inset -6px 0 0 var(--gold)}
+aside{background:var(--navy)!important;box-shadow:none}
 aside nav a,aside nav button{border-radius:4px}
 aside nav .active,aside nav [aria-current]{background:rgba(233,184,74,.18)!important}
 .seal{border-radius:4px}
@@ -211,6 +211,18 @@ dialog#dialog .actions button,dialog.req-dialog .actions button{border-radius:4p
 .cards>.card.material-exit-kpi,.cards>.card.pending-entry-kpi{border-top-color:var(--support-2)!important}
 .trend-periods button.active{background:var(--navy);color:#fff}
 .inventory-tabs button.active{border-bottom-color:var(--gold);color:var(--navy)}
+
+.trend-legend .blue{background:var(--navy)}
+
+/* ===== Filtros bem visíveis (mantém o estilo original, com mais contraste) ===== */
+main>.filters{background:#fff;border:1px solid #c9d2df;box-shadow:var(--shadow);padding:14px 16px}
+.filters>label,.group-caption{font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--navy)}
+.filters select,.filters input:not([type=checkbox]),.group-picker summary{min-height:40px;font-size:14px;font-weight:600;color:var(--navy);border:1px solid var(--support-2);background-color:#fff}
+.filters select:focus,.filters input:focus,.group-picker details[open] summary{border-color:var(--navy)}
+.executive-search input{min-height:40px;font-size:14px;border-color:var(--support-2)}
+.executive-search label{font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--navy)}
+.group-picker summary:after{content:'';float:right;width:7px;height:7px;margin:4px 4px 0 0;border:solid var(--navy);border-width:0 2px 2px 0;transform:rotate(45deg)}
+@media(max-width:900px){main>.filters,input,select,textarea,.group-picker summary{border-radius:4px!important}}
 
 /* ===== Busca + ordenação das listagens ===== */
 .executive-search.filters{flex-wrap:wrap;align-items:flex-end}
