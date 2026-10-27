@@ -1,5 +1,6 @@
 /* Grupo JTP - camada visual. Carregada por último; não altera a lógica. */
-:root{--navy:#132442;--navy-2:#1c3359;--gold:#bc974b;--gold-soft:#f6efde;--bg:#f4f6fa;--card:#fff;--text:#1f2f48;--muted:#5d6f86;--line:#dde5ee;--green:#1f7a5c;--red:#c0392b;--radius:14px;--shadow:0 1px 2px rgba(19,36,66,.06),0 6px 20px rgba(19,36,66,.06);font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+/* Paleta oficial: base #040443, destaque #E9B84A, apoio #53627E/#B3BED1, neutro #EEF2F7, cantos 4px */
+:root{--navy:#040443;--navy-2:#040443;--gold:#E9B84A;--gold-soft:#fbf3df;--support-1:#53627E;--support-2:#B3BED1;--neutral:#EEF2F7;--bg:#EEF2F7;--card:#fff;--text:#040443;--muted:#53627E;--line:#d3dae5;--green:#1f7a5c;--red:#c0392b;--radius:4px;--shadow:0 1px 2px rgba(4,4,67,.06),0 4px 14px rgba(4,4,67,.05);font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 body{background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased;line-height:1.5}
 aside{background:linear-gradient(180deg,var(--navy),var(--navy-2))!important;box-shadow:2px 0 18px rgba(19,36,66,.18)}
 aside nav a,aside nav button{border-radius:10px;transition:background .15s,transform .15s}
@@ -169,3 +170,44 @@ dialog#dialog.rot-summary-dialog form{padding:1.6rem 1.8rem!important;box-sizing
 .mail-emails{width:100%;min-width:240px}
 .stock-trend .trend-reference svg{height:auto;max-height:320px}.stock-trend .trend-bar-label{font-size:8px}
 .stock-trend .trend-axis{font-size:9px}.stock-overview-grid .official-history-panel{margin:0;align-self:stretch}
+
+/* ===== Padrão visual Grupo JTP (paleta + formulários) ===== */
+aside{background:var(--navy)!important;box-shadow:inset -6px 0 0 var(--gold)}
+aside nav a,aside nav button{border-radius:4px}
+aside nav .active,aside nav [aria-current]{background:rgba(233,184,74,.18)!important}
+.seal{border-radius:4px}
+.eyebrow{color:var(--support-1)}
+h1#title{position:relative;padding-bottom:.6rem;margin-bottom:.6rem}
+h1#title::after{content:"";position:absolute;left:0;bottom:0;width:96px;height:4px;background:var(--gold)}
+.cards>*,.panel,section>div[class*="card"],table,.rs-card,.rs-delivery,.street-card,.rq-box,.rq-line,.rq-hint,.rot-note,.imp-errors,#toast,.login-card{border-radius:4px}
+button,.rs-tab,.rq-addbtn{border-radius:4px}
+.primary{box-shadow:none;font-weight:700}
+.primary:hover{filter:none;background:#14145c!important}
+.secondary{background:#fff;border:1px solid var(--support-2);color:var(--navy);font-weight:700}
+.secondary:hover{border-color:var(--navy)}
+input,select,textarea{border:1px solid var(--support-2);border-radius:4px}
+input:focus,select:focus,textarea:focus{border-color:var(--navy);outline:none;box-shadow:0 0 0 3px rgba(233,184,74,.35)}
+:focus-visible{outline-color:rgba(233,184,74,.7)}
+input::placeholder,textarea::placeholder{color:#8a96ab}
+th{background:var(--neutral)}
+tbody tr:nth-child(even){background:#f8fafc}
+.st-bar i{background:var(--navy)}
+.st-badge{background:var(--neutral);color:var(--support-1)}
+/* Janelas de formulário: título claro, X no canto, rótulo azul acima do campo */
+dialog,dialog#dialog,dialog.req-dialog{border-radius:4px;border:1px solid var(--line);box-shadow:0 20px 50px rgba(4,4,67,.28)}
+dialog::backdrop{background:rgba(4,4,67,.5)}
+dialog#dialog .eyebrow,dialog.req-dialog .eyebrow{color:var(--support-1);letter-spacing:.06em;font-size:.75rem}
+dialog#dialog h2,dialog.req-dialog h2{color:var(--navy);font-size:1.45rem}
+dialog#dialog form>p:not([role=alert]):not(.source-note):not(.assignment-help){padding-bottom:1rem;border-bottom:1px solid var(--line)}
+dialog#dialog label,dialog.req-dialog label,.imp-row label,.street-filter{color:var(--navy);text-transform:none;letter-spacing:0;font-size:.95rem;font-weight:700}
+dialog#dialog input:not([type=checkbox]):not([type=radio]),dialog#dialog select,dialog#dialog textarea,dialog.req-dialog input,dialog.req-dialog select{font-weight:400;color:var(--navy)}
+dialog#dialog label:has(>input[type=checkbox]){border-radius:4px}
+dialog#dialog label:has(>input[type=checkbox]):has(input:checked){background:var(--neutral)}
+dialog#dialog .assignment-help,dialog#dialog .source-note,.rq-hint{background:var(--neutral)}
+dialog#dialog .actions button,dialog.req-dialog .actions button{border-radius:4px;font-weight:700}
+.rq-box legend span{background:var(--gold);color:var(--navy)}
+/* Cards, abas e seletores com as cores da paleta */
+.cards>.card{border-top:3px solid var(--navy)!important;background:#fff}
+.cards>.card.material-exit-kpi,.cards>.card.pending-entry-kpi{border-top-color:var(--support-2)!important}
+.trend-periods button.active{background:var(--navy);color:#fff}
+.inventory-tabs button.active{border-bottom-color:var(--gold);color:var(--navy)}
