@@ -2,7 +2,7 @@
 (function(){
 const PAGE=8,UNITS=['300','200','400','123','2002'];
 const NAMES={'300':'Bragança Paulista','200':'Porto Velho','400':'Embu Guaçu','123':'Rio Branco','2002':'Centro de Distribuição'};
-const WMS_CFG={'300':{sheet:'Localização',start:6,addr:'G',sku:'H'},'2002':{sheet:'WMS CD',start:3,addr:'G',sku:'I'},'200':{sheet:'Localização',start:3,addr:'G',sku:'H'},'123':{sheet:'Localização',start:6,addr:'G',sku:'H'},'400':{sheet:'Localização',start:6,addr:'G',sku:'I'}};
+const WMS_CFG={'300':{sheet:'Localização',start:6,addr:'G',sku:'H'},'2002':{sheet:'WMS CD',start:3,addr:'G',sku:'I'},'200':{sheet:'Localização',start:2,addr:'G',sku:'H'},'123':{sheet:'Localização',start:6,addr:'G',sku:'H'},'400':{sheet:'Localização',start:6,addr:'G',sku:'I'}};
 const ADDR=/^[^\r\n]+\.[A-Za-zÀ-ÿ0-9_-]+\.[A-Za-zÀ-ÿ0-9_-]+\.[A-Za-zÀ-ÿ0-9_-]+$/;
 const colIdx=l=>String(l||'').toUpperCase().split('').reduce((n,c)=>n*26+c.charCodeAt(0)-64,0)-1;
 const brMoney=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
@@ -62,9 +62,14 @@ async function parseWms(file,unit,opt){
   const wb=await readBook(file),cfg=Object.assign({},WMS_CFG[unit]||{sheet:'Localização',start:2,addr:'G',sku:'H'},opt||{});
   const name=wb.SheetNames.find(n=>n===cfg.sheet)||wb.SheetNames.find(n=>n.trim().toLowerCase()===String(cfg.sheet).toLowerCase())||(wb.SheetNames.length===1?wb.SheetNames[0]:null);
   if(!name)throw Error('Aba "'+cfg.sheet+'" não encontrada. Abas do arquivo: '+wb.SheetNames.join(', ')+'. Ajuste o nome da aba em "Ajustes".');
-  const rows=sheetRows(wb.Sheets[name]),ac=colIdx(cfg.addr),sc=colIdx(cfg.sku),out=[],errors=[];let date='';const seen={},mapping={};
+  const ws=wb.Sheets[name],rows=sheetRows(ws),ac=colIdx(cfg.addr),sc=colIdx(cfg.sku),out=[],errors=[];let date='';const seen={},mapping={};
+  // Célula com erro do Excel (#REF!, #N/D...) vem vazia do SheetJS; acusa em vez de descartar a linha.
+  const cellError=(i,c)=>{const x=ws[XLSX.utils.encode_cell({r:i,c})];return x&&x.t==='e'?(x.w||'#ERRO'):'';};
   rows.forEach((r,i)=>{const rn=i+1;
     if(rn<cfg.start){(r||[]).forEach(v=>{if(typeof v==='string'){const m=v.match(/(\d{2}\/\d{2}\/\d{4})\s*(?:[-–]\s*)?(\d{2}:\d{2})?/);if(m)date=m[1]+(m[2]?' '+m[2]:'');}});return;}
+    const addrErr=cellError(i,ac),skuErr=cellError(i,sc);
+    if(addrErr&&r&&code(r[sc])){errors.push('Linha '+rn+': endereço com erro '+addrErr+' na coluna '+cfg.addr+' · código '+code(r[sc]));return;}
+    if(skuErr&&r&&ADDR.test(String(r[ac]??'').trim())){errors.push('Linha '+rn+': código com erro '+skuErr+' na coluna '+cfg.sku+' · endereço '+String(r[ac]).trim());return;}
     if(!r)return;const address=String(r[ac]??'').trim(),sku=code(r[sc]);if(!address)return;
     if(!ADDR.test(address)){if(sku||/\d.*\./.test(address))errors.push('Linha '+rn+': endereço inválido "'+address+'"');return;}
     out.push([address,sku]);seen[address]=(seen[address]||0)+1;if(sku)(mapping[sku]=mapping[sku]||new Set()).add(address);
