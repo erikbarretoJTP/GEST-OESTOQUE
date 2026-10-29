@@ -54,7 +54,8 @@ async function parseSaldos(fileList){
   const errors=files.flatMap(f=>f.errors);
   const seen={};files.forEach(f=>{if(seen[f.day])errors.push('Dois arquivos com a mesma data ('+br(f.day)+'): '+seen[f.day]+' e '+f.file);seen[f.day]=f.file;});
   const latest=files[files.length-1];
-  if(latest){latest.units.forEach(u=>{const now=currentCount('stock',u.unit);u.now=now;u.drop=now>0&&u.records<now*.75;});const m=String(sourceMeta.stockDate||'').match(/^(\d{2})\/(\d{2})\/(\d{4})$/),curIso=m?m[3]+'-'+m[2]+'-'+m[1]:'';latest.sameDay=!!curIso&&latest.day===curIso;latest.older=!!curIso&&latest.day<curIso;latest.curBr=m?m[0]:'';}
+  // saldo atual de cada garagem = arquivo com a data mais recente; arquivo mais antigo que o atual vai só para o histórico
+  if(latest){latest.units.forEach(u=>{const m=String(sourceMeta.units[u.unit]?.stockDate||'').match(/^(\d{2})\/(\d{2})\/(\d{4})$/),curIso=m?m[3]+'-'+m[2]+'-'+m[1]:'';u.curBr=m?m[0]:'';u.older=!!curIso&&latest.day<curIso;u.sameDay=!!curIso&&latest.day===curIso;const now=currentCount('stock',u.unit);u.now=now;u.drop=!u.older&&now>0&&u.records<now*.75;});latest.sameDay=latest.units.some(u=>u.sameDay);latest.older=latest.units.length>0&&latest.units.every(u=>u.older);}
   return{files,latest,errors};
 }
 // ---------- leitura: WMS ----------
@@ -104,7 +105,8 @@ async function publishSaldo(){
   Object.keys(curD).forEach(k=>{if(stat[k]!==curD[k])diff[k]=curD[k];});
   let added=0;Object.keys(L.names||{}).forEach(k=>{if(!(k in curD)){diff[k]=L.names[k];added++;}});
   if(added)await put('catalog','*',diff,{file:L.file,added,by,total:Object.keys(diff).length});
-  for(const u of L.units)await put('stock',u.unit,{date:br(L.day),rows:u.rows},{file:L.file,day:L.day,date:br(L.day),records:u.records,value:u.value,by,history:u.history});
+  for(const u of L.units.filter(u=>u.older))await JTP_RPC('jtp_stock_history_put',{p_branch:u.unit,p_day:L.day,p_source:L.file,p_vals:u.history});
+  for(const u of L.units.filter(u=>!u.older))await put('stock',u.unit,{date:br(L.day),rows:u.rows},{file:L.file,day:L.day,date:br(L.day),records:u.records,value:u.value,by,history:u.history});
 }
 async function publishWms(){const r=st.wms;if(!r||r.errors.length)return;await put('wms',r.unit,{date:r.date,sheet:r.sheet,rows:r.rows},{file:r.file,date:r.date,rows:r.rows.length,positions:r.positions,codes:r.codes,by:selectedUser()?.name||''});}
 async function publishCat(){const r=st.cat;if(!r||r.errors.length)return;await put('catalog','*',r.diff,{file:r.file,total:r.total,added:r.added,changed:r.changed,by:selectedUser()?.name||''});}
@@ -176,14 +178,15 @@ function statusTable(){
 function saldoPreview(){const r=st.saldo;if(!r)return '';
   const L=r.latest,ex=Object.keys(L?.excluded||{});
   const head=['DATA','ARQUIVO',...UNITS.map(u=>u),'USO'];
-  const rows=r.files.map(f=>`<tr><td><b>${esc(br(f.day))}</b></td><td>${esc(f.file)}<small>${esc(f.format)}</small></td>${UNITS.map(u=>{const x=f.units.find(y=>y.unit===u);return x?`<td>${num(x.records)}<small>${brMoney(x.value)}${x.drop?' · <span class="imp-warn">queda &gt;25%</span>':''}</small></td>`:'<td>—</td>';}).join('')}<td>${f===L?'<b>Saldo atual</b>':'Histórico'}</td></tr>`);
+  const rows=r.files.map(f=>`<tr><td><b>${esc(br(f.day))}</b></td><td>${esc(f.file)}<small>${esc(f.format)}</small></td>${UNITS.map(u=>{const x=f.units.find(y=>y.unit===u);return x?`<td>${num(x.records)}<small>${brMoney(x.value)}${x.drop?' · <span class="imp-warn">queda &gt;25%</span>':''}</small></td>`:'<td>—</td>';}).join('')}<td>${f===L&&!L.older?'<b>Saldo atual</b>':'Histórico'}</td></tr>`);
   return table(head,rows)
    +(ex.length?`<p class="source-note">Depósitos fora do site (ignorados): ${ex.map(k=>esc(k)+' ('+L.excluded[k].n+' itens)').join(', ')}.</p>`:'')
-   +(L&&L.sameDay?`<p class="source-note">Já existe saldo de ${esc(L.curBr)}: este arquivo vai <b>substituir</b> o saldo desse dia.</p>`:'')
+   +(L&&L.sameDay?`<p class="source-note">Já existe saldo de ${esc(br(L.day))}: este arquivo vai <b>substituir</b> o saldo desse dia.</p>`:'')
+   +(L&&L.units.some(u=>u.older)?`<p class="source-note">Mais antigo que o saldo atual, entra só no histórico: ${L.units.filter(u=>u.older).map(u=>esc(u.unit)+' (atual '+esc(u.curBr)+')').join(', ')}.</p>`:'')
    +(L&&Object.keys(L.names||{}).length?`<p class="source-note">O arquivo traz descrições: itens novos entram na lista de itens automaticamente.</p>`:'')
    +errs(r.errors)
-   +(L&&(L.units.some(u=>u.drop)||L.older)?'<label class="imp-check"><input type="checkbox" id="imp-force"> '+(L.older?'Confirmo que este saldo é MAIS ANTIGO que o atual ('+esc(L.curBr)+') e deve substituí-lo':'Confirmo que a queda de itens é esperada')+'</label>':'')
-   +`<div class="actions"><button class="primary" id="imp-saldo-go" ${r.errors.length?'disabled':''}>${r.files.length>1?'Publicar: '+esc(br(L.day))+' como saldo atual + '+(r.files.length-1)+' dia(s) no histórico':'Publicar saldo'}</button></div>`;}
+   +(L&&L.units.some(u=>u.drop)?'<label class="imp-check"><input type="checkbox" id="imp-force"> Confirmo que a queda de itens é esperada</label>':'')
+   +`<div class="actions"><button class="primary" id="imp-saldo-go" ${r.errors.length?'disabled':''}>${L.older?'Publicar no histórico':r.files.length>1?'Publicar: '+esc(br(L.day))+' como saldo atual + '+(r.files.length-1)+' dia(s) no histórico':'Publicar saldo'}</button></div>`;}
 function wmsPreview(){const r=st.wms;if(!r)return '';
   return `<div class="imp-sum"><b>${esc(r.file)}</b> · aba ${esc(r.sheet)}${r.date?' · data '+esc(r.date):''}</div>`+table(['POSIÇÕES','OCUPADAS','VAGAS','CÓDIGOS','COM MAIS DE 1 ENDEREÇO','LINHAS ATUAIS'],[`<tr><td>${num(r.positions)}</td><td>${num(r.occupied)}</td><td>${num(r.vacant)}</td><td>${num(r.codes)}</td><td>${num(r.multi)}</td><td>${num(r.now||0)}</td></tr>`])+errs(r.errors)+`<div class="actions"><button class="primary" id="imp-wms-go" ${r.errors.length?'disabled':''}>Publicar WMS de ${esc(NAMES[r.unit])}</button></div>`;}
 function catPreview(){const r=st.cat;if(!r)return '';
@@ -221,7 +224,7 @@ function bind(){
   if($('imp-adj-go'))$('imp-adj-go').onclick=()=>{if(!$('imp-adj-day').value){st.msg.adj={t:'Informe a data do inventário.',err:true};paint();return;}run('adj',async()=>{await publishAdj();st.adj=null;st.adjFile=null;await done();},'Acuracidade publicada. Já aparece no dashboard.');};
   document.querySelectorAll('[data-adj-del]').forEach(b=>b.onclick=()=>{if(confirm('Excluir este ajuste?'))run('adj',async()=>{await JTP_RPC('jtp_adjust_delete',{p_id:Number(b.dataset.adjDel)});await done();},'Ajuste excluído.');});
   const done=async()=>{await window.JTP_DATA.reload();};
-  if($('imp-saldo-go'))$('imp-saldo-go').onclick=()=>{if((st.saldo.latest.units.some(u=>u.drop)||st.saldo.latest.older)&&!$('imp-force')?.checked){st.msg.saldo={t:'Marque a confirmação acima para continuar.',err:true};paint();return;}run('saldo',async()=>{const units=st.saldo.latest.units.map(u=>u.unit);await publishSaldo();st.saldo=null;await done();});};
+  if($('imp-saldo-go'))$('imp-saldo-go').onclick=()=>{if(st.saldo.latest.units.some(u=>u.drop)&&!$('imp-force')?.checked){st.msg.saldo={t:'Marque a confirmação acima para continuar.',err:true};paint();return;}run('saldo',async()=>{const units=st.saldo.latest.units.map(u=>u.unit);await publishSaldo();st.saldo=null;await done();});};
   if($('imp-wms-go'))$('imp-wms-go').onclick=()=>run('wms',async()=>{await publishWms();st.wms=null;st.wmsFile=null;await done();},'WMS publicado. Todos os aparelhos recebem em até 1 minuto.');
   if($('imp-cat-go'))$('imp-cat-go').onclick=()=>run('cat',async()=>{await publishCat();st.cat=null;await done();},'Lista de itens publicada.');
 }
