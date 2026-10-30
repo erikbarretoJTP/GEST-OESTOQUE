@@ -77,7 +77,11 @@ function apply(data){
 async function loadAdj(){try{const l=await JTP_RPC('jtp_adjust_list');window.JTP_ADJ=l;
   for(let i=reportedAccuracy.length-1;i>=0;i--)if(reportedAccuracy[i].imported)reportedAccuracy.splice(i,1);
   l.forEach(a=>reportedAccuracy.push({unit:a.unit,event:a.event,date:String(a.date).slice(0,10),negative:Number(a.negative),positive:Number(a.positive),withoutWMS:a.withoutWMS==null?undefined:Number(a.withoutWMS),stockValue:Number(a.stockValue),imported:true}));
-  reportedAccuracy.sort((x,y)=>String(y.date).localeCompare(String(x.date)));}catch(e){}}
+  reportedAccuracy.sort((x,y)=>String(y.date).localeCompare(String(x.date)));}catch(e){}
+  // notas do relatório DF-e (indicador de entradas); sem a parte 13 do SQL fica vazio
+  try{window.JTP_DFE=await JTP_RPC('jtp_dfe_list');}catch(e){}
+  // movimento do dia (tooltip do gráfico): [garagem, dia, origem, grupo, valor, linhas]
+  try{window.JTP_MOVES=(await JTP_RPC('jtp_moves_list')).map(r=>({unit:r[0],day:String(r[1]).slice(0,10),kind:r[2],group:r[3],value:Number(r[4]),lines:Number(r[5])}));}catch(e){}}
 async function status(){return JTP_RPC('jtp_data_status');}
 const keyOf=st=>(st.sets||[]).map(s=>s.kind+'|'+s.branch+'|'+s.at).sort().join(';');
 async function load(force){
