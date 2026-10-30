@@ -16,7 +16,7 @@ async function readBook(file){if(typeof XLSX==='undefined'){let code='?';try{con
   try{return XLSX.read(buf,{type:'array',cellDates:true});}catch(e){if(!/\.xls$/i.test(file.name))throw e;await fullXlsx();return XLSX.read(buf,{type:'array',cellDates:true});}}
 // .xls antigo (ex.: relatório DF-e) precisa da versão completa do leitor; só carrega quando aparece um
 let fullXlsxP=null;
-function fullXlsx(){return fullXlsxP=fullXlsxP||new Promise((ok,fail)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';s.onload=ok;s.onerror=()=>{fullXlsxP=null;fail(Error('Não consegui carregar o leitor de .xls. Confira a internet ou salve o arquivo como .xlsx.'));};document.head.appendChild(s);});}
+function fullXlsx(){return fullXlsxP=fullXlsxP||new Promise((ok,fail)=>{const s=document.createElement('script');s.src='vendor/xlsx.full.min.js';s.onload=ok;s.onerror=()=>{fullXlsxP=null;fail(Error('Não consegui carregar o leitor de .xls (vendor/xlsx.full.min.js). Atualize com Ctrl+Shift+R ou salve o arquivo como .xlsx.'));};document.head.appendChild(s);});}
 function toISO(v){if(v instanceof Date&&!isNaN(v)){const d=new Date(v.getTime()+12*3600e3);return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');}
   if(typeof v==='number'){const d=new Date(Math.round((v-25569)*86400e3)+12*3600e3);return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');}
   const m=String(v||'').match(/(\d{2})\/(\d{2})\/(\d{4})/);return m?m[3]+'-'+m[2]+'-'+m[1]:'';}
