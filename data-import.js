@@ -7,7 +7,7 @@ const ADDR=/^[^\r\n]+\.[A-Za-zÀ-ÿ0-9_-]+\.[A-Za-zÀ-ÿ0-9_-]+\.[A-Za-zÀ-ÿ0-9
 const colIdx=l=>String(l||'').toUpperCase().split('').reduce((n,c)=>n*26+c.charCodeAt(0)-64,0)-1;
 const brMoney=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
 const brDT=iso=>{try{return new Date(iso).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'});}catch{return '';}};
-const st={mail:null,saldo:null,wms:null,cat:null,wmsUnit:'300',adj:null,adjUnit:'300',dfe:null,dfeUnit:'300',moves:null,busy:false,msg:{}};
+const st={mail:null,saldo:null,wms:null,cat:null,wmsUnit:'300',adj:null,adjUnit:'300',dfe:null,dfeUnit:'300',busy:false,msg:{}};
 const code=v=>{if(typeof v==='number'&&Number.isFinite(v))return Number.isInteger(v)?String(v):String(v);const s=String(v??'').trim();return !s||s==='0'||s==='-'||s.startsWith('#')?null:s;};
 const skuOf=v=>typeof v==='number'?String(Math.trunc(v)):String(v??'').trim();
 function sheetRows(ws){const r=XLSX.utils.decode_range(ws['!ref']||'A1');r.s.r=0;r.s.c=0;ws['!ref']=XLSX.utils.encode_range(r);return XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null,blankrows:true});}
@@ -113,32 +113,6 @@ async function parseDfe(file,unit){
   const days=docs.map(d=>d.created.slice(0,10)).sort();
   return{file:file.name,unit,detected,company:Object.keys(emps)[0]||'',docs,months,sits,from:days[0]||'',to:days.at(-1)||'',errors:errors.slice(0,12)};
 }
-// ---------- leitura: movimento do dia (Base de Recebimento e Base Detalhada de saídas) ----------
-// Recebimento: só status "Fechado", pela data de lançamento; grupo vem do saldo SAP pelo código do item.
-// Saídas: origem SO (saída), AS (ajuste, + ou -) e EM (entrada manual), pela data de lançamento; grupo da coluna ItmsGrpName.
-const MOVE_KINDS=['SO','AS','EM'];
-function groupOfSku(u,sku){const i=stockIndex.get(u+'|'+sku);if(i?.group)return i.group;const any=items.find(x=>x.sku===sku&&x.group);return any?any.group:'SEM GRUPO';}
-async function parseMoves(file){
-  const wb=await readBook(file),rows=sheetRows(wb.Sheets[wb.SheetNames[0]]),h=(rows[0]||[]).map(x=>String(x??'').trim()),ix=n=>h.indexOf(n);
-  const isIn=ix('Código de depósito')>=0&&ix('Status')>=0,isOut=ix('Origem')>=0&&ix('Depósito')>=0;
-  if(!isIn&&!isOut)throw Error(file.name+': cabeçalho não reconhecido. Use a Base de Recebimento ou a Base Detalhada de saídas.');
-  const day=ix('Data de lançamento')>=0?ix('Data de lançamento'):ix('DocDate'),c=isIn?{day,unit:ix('Código de depósito'),sku:ix('Nº do item'),total:ix('Preço total'),status:ix('Status')}:{day,unit:ix('Depósito'),sku:ix('Cód. Item'),total:ix('Preço Total'),kind:ix('Origem'),group:ix('ItmsGrpName')};
-  const errors=[];Object.keys(c).forEach(k=>{if(c[k]<0)errors.push(file.name+': coluna não encontrada ('+k+')');});
-  const agg={},ignored={},byUnit={},byKind={},months=new Set();let used=0,skipped=0;
-  if(!errors.length)rows.slice(1).forEach((r,i)=>{if(!r||r.every(v=>v==null||v===''))return;
-    if(isIn&&String(r[c.status]??'').trim()!=='Fechado'){skipped++;return;}
-    const kind=isIn?'REC':String(r[c.kind]??'').trim();if(!isIn&&!MOVE_KINDS.includes(kind)){skipped++;return;}
-    const u=skuOf(r[c.unit]),day=toISO(r[c.day]),v=typeof r[c.total]==='number'?r[c.total]:Number(String(r[c.total]??'').replace(',','.'));
-    if(!day||!Number.isFinite(v)){if(errors.length<12)errors.push(file.name+' linha '+(i+2)+': data ou valor inválido');return;}
-    if(!UNITS.includes(u)){const e=ignored[u]=ignored[u]||{n:0,v:0};e.n++;e.v+=v;return;}
-    const g=isIn?groupOfSku(u,skuOf(r[c.sku])):String(r[c.group]??'').trim()||'SEM GRUPO',k=u+'|'+day+'|'+kind+'|'+g;
-    const a=agg[k]=agg[k]||{unit:u,day,kind,group:g,value:0,lines:0};a.value+=v;a.lines++;used++;months.add(day.slice(0,7));
-    byUnit[u]=(byUnit[u]||0)+v;byKind[kind]=(byKind[kind]||0)+v;});
-  const out=Object.values(agg);out.forEach(a=>{a.value=Math.round(a.value*100)/100;});
-  if(!errors.length&&!out.length)errors.push(file.name+': nenhuma linha das garagens do site.');
-  const days=out.map(a=>a.day).sort();
-  return{file:file.name,family:isIn?'in':'out',rows:out,months:[...months].sort(),used,skipped,ignored,byUnit,byKind,from:days[0]||'',to:days.at(-1)||'',errors};
-}
 // ---------- leitura: lista de itens ----------
 async function parseCat(file){
   const wb=await readBook(file),rows=sheetRows(wb.Sheets[wb.SheetNames[0]]),h=rows[0]||[];
@@ -167,8 +141,6 @@ async function publishSaldo(){
 }
 async function publishDfe(){const r=st.dfe;if(!r||r.errors.length)return;
   for(let i=0;i<r.docs.length;i+=1000)await JTP_RPC('jtp_dfe_put',{p:{branch:r.unit,source:r.file,docs:r.docs.slice(i,i+1000)}});}
-async function publishMoves(){const r=st.moves;if(!r||r.errors.length)return;
-  for(const f of r.files)for(let i=0;i<f.rows.length||i===0;i+=2000)await JTP_RPC('jtp_moves_put',{p:{family:f.family,months:f.months,source:f.file,replace:i===0,rows:f.rows.slice(i,i+2000)}});}
 async function publishWms(){const r=st.wms;if(!r||r.errors.length)return;await put('wms',r.unit,{date:r.date,sheet:r.sheet,rows:r.rows},{file:r.file,date:r.date,rows:r.rows.length,positions:r.positions,codes:r.codes,by:selectedUser()?.name||''});}
 async function publishCat(){const r=st.cat;if(!r||r.errors.length)return;await put('catalog','*',r.diff,{file:r.file,total:r.total,added:r.added,changed:r.changed,by:selectedUser()?.name||''});}
 
@@ -256,13 +228,6 @@ function dfePreview(){const r=st.dfe;if(!r)return '';const p=v=>v==null?'—':v.
    +(r.detected?'':`<p class="source-note">Garagem não reconhecida pela coluna "Empresa": confira a garagem escolhida acima.</p>`)
    +`<p class="source-note">Notas já importadas antes são atualizadas pela chave (ex.: pendente que recebeu entrada).</p>`
    +errs(r.errors)+`<div class="actions"><button class="primary" id="imp-dfe-go" ${r.errors.length?'disabled':''}>Publicar ${num(r.docs.length)} notas de ${esc(NAMES[r.unit]||r.unit)}</button></div>`;}
-function movesPreview(){const r=st.moves;if(!r)return '';
-  const rows=r.files.map(f=>`<tr><td><b>${f.family==='in'?'Recebimento':'Saídas'}</b><small>${esc(f.file)}</small></td><td>${esc(f.months.map(m=>m.slice(5,7)+'/'+m.slice(0,4)).join(', '))}<small>${esc(br(f.from))} a ${esc(br(f.to))}</small></td><td>${num(f.used)}<small>${num(f.skipped)} fora (${f.family==='in'?'status não Fechado':'outra origem'})</small></td>${UNITS.map(u=>`<td>${f.byUnit[u]==null?'—':brMoney(f.byUnit[u])}</td>`).join('')}<td>${f.family==='in'?'':Object.keys(f.byKind).sort().map(k=>esc(k)+' '+brMoney(f.byKind[k])).join('<br>')}</td></tr>`);
-  const ign=r.files.flatMap(f=>Object.keys(f.ignored).map(u=>esc(u)+' ('+num(f.ignored[u].n)+' linhas)'));
-  return table(['BASE','MÊS','LINHAS',...UNITS,'POR ORIGEM'],rows)
-   +(ign.length?`<p class="source-note">Depósitos fora do site (ignorados): ${[...new Set(ign)].join(', ')}.</p>`:'')
-   +`<p class="source-note">Importar o mesmo mês de novo substitui aquele mês daquela base.</p>`
-   +errs(r.errors)+`<div class="actions"><button class="primary" id="imp-moves-go" ${r.errors.length?'disabled':''}>Publicar movimento</button></div>`;}
 function wmsPreview(){const r=st.wms;if(!r)return '';
   return `<div class="imp-sum"><b>${esc(r.file)}</b> · aba ${esc(r.sheet)}${r.date?' · data '+esc(r.date):''}</div>`+table(['POSIÇÕES','OCUPADAS','VAGAS','CÓDIGOS','COM MAIS DE 1 ENDEREÇO','LINHAS ATUAIS'],[`<tr><td>${num(r.positions)}</td><td>${num(r.occupied)}</td><td>${num(r.vacant)}</td><td>${num(r.codes)}</td><td>${num(r.multi)}</td><td>${num(r.now||0)}</td></tr>`])+errs(r.errors)+`<div class="actions"><button class="primary" id="imp-wms-go" ${r.errors.length?'disabled':''}>Publicar WMS de ${esc(NAMES[r.unit])}</button></div>`;}
 function catPreview(){const r=st.cat;if(!r)return '';
@@ -288,8 +253,6 @@ function html(){
   +panel('5 · Entradas (DF-e)','Relatório DF-e de uma garagem · notas emitidas x notas com entrada (indicador do dashboard)',
     `<div class="imp-row"><label>GARAGEM<select id="imp-dfe-unit">${UNITS.map(u=>`<option value="${u}" ${u===st.dfeUnit?'selected':''}>${u} · ${esc(NAMES[u])}</option>`).join('')}</select></label><label>ARQUIVO<input type="file" id="imp-dfe-file" accept=".xls,.xlsx"></label></div>
      <p class="source-note">A garagem é reconhecida pela coluna "Empresa". Canceladas não contam; "Documento Encontrado na Sefaz" e "Operação não Realizada" ficam como pendentes. Mês pela data de criação.</p>${msg('dfe')}<div id="imp-dfe-prev">${dfePreview()}</div>`)
-  +panel('6 · Movimento do dia','Base de Recebimento e Base Detalhada (saídas) do mês · aparecem ao passar o mouse no gráfico de evolução',
-    `<input type="file" id="imp-moves-file" accept=".xlsx,.xlsm" multiple><p class="source-note">Pode escolher as duas bases juntas. Entrada = recebimento com status Fechado; saída por origem (SO, AS, EM). Data de lançamento.</p>${msg('moves')}<div id="imp-moves-prev">${movesPreview()}</div>`)
   +panel('Histórico de importações','Últimas 25',logTable());
 }
 function wmsOpts(){const g=id=>$(id)?.value;return{sheet:g('imp-sheet'),start:Number(g('imp-start'))||1,addr:g('imp-addr'),sku:g('imp-sku')};}
@@ -307,14 +270,12 @@ function bind(){
   $('imp-dfe-unit').onchange=e=>{st.dfeUnit=e.target.value;if(st.dfeFile)run('dfe',async()=>{st.dfe=await parseDfe(st.dfeFile,st.dfeUnit);st.dfeUnit=st.dfe.unit;});};
   $('imp-dfe-file').onchange=e=>{const f=e.target.files[0];if(!f)return;st.dfe=null;st.dfeFile=f;run('dfe',async()=>{st.dfe=await parseDfe(f,st.dfeUnit);st.dfeUnit=st.dfe.unit;},'Arquivo lido. Confira o resumo e publique.');};
   if($('imp-dfe-go'))$('imp-dfe-go').onclick=()=>run('dfe',async()=>{await publishDfe();st.dfe=null;st.dfeFile=null;await done();},'Notas publicadas. O indicador de entradas já aparece no dashboard.');
-  $('imp-moves-file').onchange=e=>{const fl=[...e.target.files];if(!fl.length)return;st.moves=null;run('moves',async()=>{const files=[];for(const f of fl)files.push(await parseMoves(f));st.moves={files,errors:files.flatMap(f=>f.errors).slice(0,12)};},'Arquivo(s) lido(s). Confira o resumo e publique.');};
-  if($('imp-moves-go'))$('imp-moves-go').onclick=()=>run('moves',async()=>{await publishMoves();st.moves=null;await done();},'Movimento publicado. Passe o mouse no gráfico de evolução do dashboard.');
   const done=async()=>{await window.JTP_DATA.reload();};
   if($('imp-saldo-go'))$('imp-saldo-go').onclick=()=>{if(st.saldo.latest.units.some(u=>u.drop)&&!$('imp-force')?.checked){st.msg.saldo={t:'Marque a confirmação acima para continuar.',err:true};paint();return;}run('saldo',async()=>{const units=st.saldo.latest.units.map(u=>u.unit);await publishSaldo();st.saldo=null;await done();});};
   if($('imp-wms-go'))$('imp-wms-go').onclick=()=>run('wms',async()=>{await publishWms();st.wms=null;st.wmsFile=null;await done();},'WMS publicado. Todos os aparelhos recebem em até 1 minuto.');
   if($('imp-cat-go'))$('imp-cat-go').onclick=()=>run('cat',async()=>{await publishCat();st.cat=null;await done();},'Lista de itens publicada.');
 }
-function paint(){if(page!==PAGE)return;const keep={};['imp-saldo-file','imp-wms-file','imp-cat-file','imp-adj-file','imp-dfe-file','imp-moves-file'].forEach(id=>{keep[id]=$(id)?.files;});
+function paint(){if(page!==PAGE)return;const keep={};['imp-saldo-file','imp-wms-file','imp-cat-file','imp-adj-file','imp-dfe-file'].forEach(id=>{keep[id]=$(id)?.files;});
   const y=window.scrollY,keyOf=e=>e.id||(e.className?e.className.split(' ')[0]+'|'+(e.dataset.b||''):''),snap={};
   document.querySelectorAll('#content input:not([type=file]),#content select').forEach(e=>{const k=keyOf(e);if(k)snap[k]=e.type==='checkbox'?e.checked:e.value;});
   $('content').innerHTML=html();
@@ -328,7 +289,7 @@ render=function(){
   let admin=false;try{admin=isAdmin();}catch{}
   if(!admin){page=0;prev.apply(this,arguments);ensureNav();return;}
   page=6;prev.apply(this,arguments);page=PAGE;
-  $('title').textContent='Importação de dados';const sub=$('subtitle');if(sub)sub.textContent='Saldo SAP, mapa WMS, lista de itens, entradas (DF-e) e movimento do dia. Valem para todos os aparelhos.';
+  $('title').textContent='Importação de dados';const sub=$('subtitle');if(sub)sub.textContent='Saldo SAP, mapa WMS, lista de itens e entradas (DF-e). Valem para todos os aparelhos.';
   const f=document.querySelector('.filters');if(f)f.hidden=true;if($('new'))$('new').hidden=true;
   document.body.classList.remove('only-official');
   paint();ensureNav();document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active',Number(b.dataset.page)===PAGE));
