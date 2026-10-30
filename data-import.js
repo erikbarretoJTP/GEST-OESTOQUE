@@ -122,7 +122,7 @@ async function parseMoves(file){
   const wb=await readBook(file),rows=sheetRows(wb.Sheets[wb.SheetNames[0]]),h=(rows[0]||[]).map(x=>String(x??'').trim()),ix=n=>h.indexOf(n);
   const isIn=ix('Código de depósito')>=0&&ix('Status')>=0,isOut=ix('Origem')>=0&&ix('Depósito')>=0;
   if(!isIn&&!isOut)throw Error(file.name+': cabeçalho não reconhecido. Use a Base de Recebimento ou a Base Detalhada de saídas.');
-  const c=isIn?{day:ix('Data de lançamento'),unit:ix('Código de depósito'),sku:ix('Nº do item'),total:ix('Preço total'),status:ix('Status')}:{day:ix('Data de lançamento'),unit:ix('Depósito'),sku:ix('Cód. Item'),total:ix('Preço Total'),kind:ix('Origem'),group:ix('ItmsGrpName')};
+  const day=ix('Data de lançamento')>=0?ix('Data de lançamento'):ix('DocDate'),c=isIn?{day,unit:ix('Código de depósito'),sku:ix('Nº do item'),total:ix('Preço total'),status:ix('Status')}:{day,unit:ix('Depósito'),sku:ix('Cód. Item'),total:ix('Preço Total'),kind:ix('Origem'),group:ix('ItmsGrpName')};
   const errors=[];Object.keys(c).forEach(k=>{if(c[k]<0)errors.push(file.name+': coluna não encontrada ('+k+')');});
   const agg={},ignored={},byUnit={},byKind={},months=new Set();let used=0,skipped=0;
   if(!errors.length)rows.slice(1).forEach((r,i)=>{if(!r||r.every(v=>v==null||v===''))return;

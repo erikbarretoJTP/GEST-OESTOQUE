@@ -13,7 +13,7 @@ function tipHtml(p,prev,from){
   const {t,n}=movesFor(from,p.date),out=t.SO+t.AS+t.EM,has=n.REC+n.SO+n.AS+n.EM>0;
   return `<b>${esc(brDay(p.date))}</b><span class="mv-stock">Estoque ${esc(money(p.value))}${prev?` <i>${esc(signed(p.value-prev.value))}</i>`:''}</span>`
    +(has?`<div class="mv-sec">Entradas</div><div class="mv-row"><span>Recebimento</span><b class="in">${esc(signed(t.REC))}</b></div>`
-   +`<div class="mv-sec">Saídas</div>${Object.keys(ORIG).map(k=>`<div class="mv-row"><span>${ORIG[k]}</span><b class="${t[k]<0?'out':'in'}">${esc(signed(t[k]))}</b></div>`).join('')}`
+   +`<div class="mv-sec">Saídas</div>${Object.keys(ORIG).map(k=>`<div class="mv-row"><span>${ORIG[k]}</span><b class="${k==='AS'?'adj':t[k]<0?'out':'in'}">${esc(signed(t[k]))}</b></div>`).join('')}`
    +`<div class="mv-row mv-total"><span>Total saídas</span><b class="${out<0?'out':'in'}">${esc(signed(out))}</b></div>`
    +(from?`<small>Movimento de ${esc(brDay(from))} (exclusive) a ${esc(brDay(p.date))}</small>`:'')
    :'<small>Sem movimento importado para este período.</small>');

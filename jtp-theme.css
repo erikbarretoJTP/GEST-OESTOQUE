@@ -254,6 +254,6 @@ th[aria-sort=ascending],th[aria-sort=descending]{color:var(--navy);box-shadow:in
 .mv-tip .mv-stock i{font-style:normal;font-weight:600}
 .mv-tip .mv-sec{margin-top:6px;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--support-1)}
 .mv-tip .mv-row{display:flex;justify-content:space-between;gap:12px;padding:2px 0;font-variant-numeric:tabular-nums}
-.mv-tip .mv-row b.in{color:#2b9b62}.mv-tip .mv-row b.out{color:#dc5858}
+.mv-tip .mv-row b.in{color:#2b9b62}.mv-tip .mv-row b.out{color:#dc5858}.mv-tip .mv-row b.adj{color:#b8860b}
 .mv-tip .mv-total{border-top:1px solid var(--line);margin-top:4px;padding-top:4px;font-weight:600}
 .mv-tip small{display:block;margin-top:6px;color:var(--support-1);font-size:10px}
