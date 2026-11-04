@@ -49,7 +49,7 @@ function apply(data){
     const u=s.branch,p=s.payload||{},rows=p.rows||[];
     if(!UNITS.includes(u))continue;
     const group={};items.filter(i=>i.unit===u).forEach(i=>{group[i.sku]=i.group;});
-    const fresh=rows.map((r,i)=>{const sku=r[1]?String(r[1]):null;return{unit:u,address:String(r[0]),street:String(r[0]).split('.')[0],sku,name:sku?descOf(sku):'',sourceRow:i+1,sourceSheet:p.sheet||'',group:sku?(group[sku]||''):''};});
+    const fresh=rows.map((r,i)=>{const sku=r[1]?String(r[1]):null;return{unit:u,address:String(r[0]),street:String(r[0]).split('.')[0],sku,name:sku?descOf(sku):'',sourceRow:i+1,sourceSheet:p.sheet||'',group:sku?(group[sku]||''):'',area:r[2]||''};});
     const loc=window.JTP_SOURCE.locations;
     for(let i=loc.length-1;i>=0;i--)if(loc[i].unit===u)loc.splice(i,1);
     loc.push(...fresh);
