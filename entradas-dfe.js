@@ -14,16 +14,21 @@ function pendingDialog(list,month){
     <div class="actions"><button type="button" class="secondary" id="dfe-export">↓ Exportar CSV</button><button type="button" class="primary" data-cancel>Fechar</button></div>`);
   $('dfe-export').onclick=()=>exportCSV(rows.map(d=>({Garagem:d.unit,Criacao:brDay(d.created),Numero:d.number||'',Modelo:d.model||'',Parceiro:d.partner||'',Valor:d.total==null?'':Number(d.total),Situacao:d.situation,Chave:d.key})),'jtp-entradas-pendentes');
 }
+// mês escolhido no card (indicador mensal); vazio = mês mais recente com notas
+let chosenMonth='';
+const monthLabel=k=>k.slice(5,7)+'/'+k.slice(0,4);
 function card(el){
   el.classList.remove('entry-kpi-on');
   if(!Array.isArray(window.JTP_DFE)||!window.JTP_DFE.length){el.innerHTML='<div class="card-top"><span class="label">ENTRADAS DE NOTAS</span></div><div class="value">—</div><small>Importe o relatório DF-e em Importação de dados.</small>';return;}
   const u=$('unit')?.value||'all',all=window.JTP_DFE.filter(d=>u==='all'||d.unit===u);
-  const month=all.reduce((m,d)=>{const k=String(d.created).slice(0,7);return k>m?k:m;},'');
-  if(!month){el.innerHTML='<div class="card-top"><span class="label">ENTRADAS DE NOTAS</span></div><div class="value">—</div><small>Sem notas importadas para este estoque.</small>';return;}
-  const label=month.slice(5,7)+'/'+month.slice(0,4),m=metrics(all.filter(d=>String(d.created).startsWith(month)));
+  const months=[...new Set(all.map(d=>String(d.created).slice(0,7)))].sort().reverse();
+  if(!months.length){el.innerHTML='<div class="card-top"><span class="label">ENTRADAS DE NOTAS</span></div><div class="value">—</div><small>Sem notas importadas para este estoque.</small>';return;}
+  const month=months.includes(chosenMonth)?chosenMonth:months[0];
+  const label=monthLabel(month),m=metrics(all.filter(d=>String(d.created).startsWith(month)));
   el.classList.add('entry-kpi-on');
   el.title='Notas com entrada (confirmação da operação) ÷ notas emitidas no mês, sem as canceladas. Mês pela data de criação no DF-e.';
-  el.innerHTML=`<div class="card-top"><span class="label">ENTRADAS DE NOTAS · ${esc(label)}</span></div><div class="value">${m.percent===null?'—':Math.round(m.percent)+'%'}</div><div class="material-exit-counts"><b>${m.total}</b> ${m.total===1?'emitida':'emitidas'} / <b>${m.done}</b> com entrada</div>${m.pending.length?`<button type="button" class="secondary dashboard-card-link" id="dfe-pending">Ver ${m.pending.length} ${m.pending.length===1?'pendente':'pendentes'} →</button>`:'<small>Nenhuma pendente</small>'}`;
+  el.innerHTML=`<div class="card-top"><span class="label">ENTRADAS DE NOTAS</span><select class="entry-month" id="dfe-month" aria-label="Mês do indicador de entradas">${months.map(k=>`<option value="${k}" ${k===month?'selected':''}>${monthLabel(k)}</option>`).join('')}</select></div><div class="value">${m.percent===null?'—':Math.round(m.percent)+'%'}</div><div class="material-exit-counts"><b>${m.total}</b> ${m.total===1?'emitida':'emitidas'} / <b>${m.done}</b> com entrada</div>${m.pending.length?`<button type="button" class="secondary dashboard-card-link" id="dfe-pending">Ver ${m.pending.length} ${m.pending.length===1?'pendente':'pendentes'} →</button>`:'<small>Nenhuma pendente</small>'}`;
+  $('dfe-month').onchange=e=>{chosenMonth=e.target.value;card(el);};
   if($('dfe-pending'))$('dfe-pending').onclick=()=>pendingDialog(m.pending,label);
 }
 const prev=render;
