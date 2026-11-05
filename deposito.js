@@ -1,5 +1,5 @@
 // Inventário por depósito (coluna "Estoque" do WMS, hoje só no CD: LEVES, PESADOS, PISO SUP. BORRACHARIA, ESTOQUE 2).
-// Cada rua pertence a um depósito. Agrupa as ruas por depósito na designação das duplas e na abertura do rotativo,
+// Cada rua pertence a um depósito. Agrupa as ruas por depósito na designação das duplas, dá o campo Depósito na abertura do rotativo,
 // mostra o depósito ao lado do endereço na contagem e acrescenta a coluna "Deposito" nas exportações.
 // Garagem sem a coluna no WMS fica como sempre foi.
 (function(){
@@ -30,15 +30,24 @@ function groupAssignment(inv){
     boxes.forEach(i=>i.addEventListener('change',sync));all.onchange=()=>{boxes.forEach(i=>{i.checked=all.checked;});};sync();});
 }
 
-// 2) abertura do rotativo: ruas do select agrupadas por depósito
+// 2) abertura do rotativo: campo "Depósito" acima da rua; escolhido o depósito, a rua só mostra as ruas dele
 function groupRotativoSelect(){
-  const form=$('form'),sel=form?.querySelector('select[name="street"]'),unit=form?.querySelector('select[name="unit"]')?.value;if(!sel||!unit)return;
-  const sig=unit+'|'+[...sel.options].map(o=>o.value).join(',');if(sel.dataset.depSig===sig)return;
-  const map=depositMap(unit);sel.dataset.depSig=sig;if(!Object.keys(map).length)return;
-  const chosen=sel.value,opts=[...sel.options];sel.innerHTML='';
-  groupsOf(opts.map(o=>streetOf(o.value)),map).forEach(([dep,streets])=>{const og=document.createElement('optgroup');og.label=dep;
-    streets.forEach(s=>{const o=opts.find(x=>streetOf(x.value)===s);if(o)og.append(o);});sel.append(og);});
-  sel.value=chosen;sel.dataset.depSig=unit+'|'+[...sel.options].map(o=>o.value).join(',');
+  const form=$('form'),sel=form?.querySelector('select[name="street"]'),unit=form?.querySelector('select[name="unit"]')?.value;
+  let box=form?.querySelector('.rot-deposit');if(!sel||!unit){box?.remove();return;}
+  const values=[...sel.options].map(o=>o.value).join(',');if(sel._depShown===unit+'|'+values)return;
+  // lista nova vinda do site (abriu o formulário ou trocou a filial)
+  const map=depositMap(unit),opts=[...sel.options];
+  if(!Object.keys(map).length){box?.remove();sel._depShown=unit+'|'+values;return;}
+  const groups=groupsOf(opts.map(o=>streetOf(o.value)),map);
+  if(!box){box=document.createElement('label');box.className='rot-deposit';box.innerHTML='Depósito<select></select>';sel.closest('label').before(box);}
+  const dsel=box.querySelector('select'),prevDep=dsel.value;
+  dsel.innerHTML=groups.map(([dep,st])=>`<option value="${esc(dep)}">${esc(dep)} · ${st.length} ${st.length===1?'rua':'ruas'}</option>`).join('');
+  const current=map[streetOf(sel.value)];dsel.value=groups.some(([d])=>d===prevDep)?prevDep:(current||groups[0][0]);
+  const apply=()=>{const streets=new Set((groups.find(([d])=>d===dsel.value)||[,[]])[1]),chosen=sel.value;
+    sel.innerHTML='';opts.filter(o=>streets.has(streetOf(o.value))).forEach(o=>sel.append(o));
+    if([...sel.options].some(o=>o.value===chosen))sel.value=chosen;
+    sel._depShown=unit+'|'+[...sel.options].map(o=>o.value).join(',');sel.dispatchEvent(new Event('change',{bubbles:true}));};
+  dsel.onchange=apply;apply();
 }
 new MutationObserver(()=>{try{groupRotativoSelect();}catch(e){}}).observe(document.body,{childList:true,subtree:true});
 
