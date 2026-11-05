@@ -282,3 +282,18 @@ dialog#dialog .dep-group .dep-head{grid-column:1/-1;color:var(--navy);font-size:
 .dep-group .dep-head small{color:var(--support-1);font-weight:400}
 @media(max-width:560px){.dep-group{grid-template-columns:1fr}}
 .dep-tag{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:4px;background:var(--gold);color:var(--navy);font-size:10px;font-weight:600;letter-spacing:.03em;vertical-align:middle}
+
+/* ===== Rotativo: aba Ruas (histórico por rua) ===== */
+.rot-streets-bar{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;padding:12px 20px;background:#f8fafc;border-bottom:1px solid var(--line)}
+.rot-streets-bar label{display:grid;gap:5px;font-size:10px;font-weight:600;letter-spacing:.06em;color:var(--support-1)}
+.rot-streets-bar .rs-summary{font-size:12px;color:var(--support-1);margin-left:auto}
+.rot-streets-bar .rs-summary b{color:var(--navy)}
+.rot-streets .rs-row{cursor:pointer}
+.rot-streets .rs-row.open td{background:#eef4f8}
+.rot-streets .rs-row .dep-tag{display:inline-block;margin:4px 0 0}
+.rot-streets .rs-row td small{display:block}
+.rot-streets .rs-history>td{background:#f6f9fb;padding:8px 14px 16px}
+.rot-streets .rs-history table{font-size:12px}
+.rot-streets .st-badge{display:inline-block;margin-top:4px;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:600}
+.rot-streets .st-badge.warn{background:#fff4dc;color:#8a6110}
+.rot-streets .st-badge.idle{background:#fbefeb;color:#a04131}
