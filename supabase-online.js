@@ -56,7 +56,10 @@ if(window.JTP_SUPABASE?.enabled){
   inventories.forEach(inv=>{if(inv.type!=='Rotativo'||!inv._remote)return;inv.lines.forEach(l=>{const k=inv.id+'|'+l.sku;if(!queued.has(k))rotRev.set(k,l.counts[0]?._revision||0);});});
   rotQueue.forEach(x=>{const inv=inventories.find(i=>i.id===x.inv&&i.type==='Rotativo'&&i.status==='Em andamento'),l=inv?.lines.find(l=>l.sku===x.sku);if(l){if(!rotRev.has(x.key))rotRev.set(x.key,l.counts[0]?._revision||0);l.counts=[rotItemCount(x,l.counts[0])];}});
   if(rotQueue.length&&!rotFlushing)rotKick();window.JTP_ROT_MARK?.();}
- async function fetchState(force=false){const state=await rpc('jtp_online_state');try{const p=await rpc('jtp_rotativo_poll',{fp:force?'':rotFp});rotFp=p.fp;if(p.changed)rotCache=p.rotativos||[];}catch{rotFp='';}state.rotativos=JSON.parse(JSON.stringify(rotCache));return state;}
+ // consulta leve (parte 18): só baixa os inventários quando mudaram; sem a parte 18 usa a consulta completa
+let onlineFp='',onlineCache=null,onlinePoll=true;
+async function fetchOnline(force){if(onlinePoll){try{const p=await rpc('jtp_online_poll',{fp:force||!onlineCache?'':onlineFp});onlineFp=p.fp;if(p.changed||!onlineCache)onlineCache=p.state;return JSON.parse(JSON.stringify(onlineCache));}catch(error){if(!/Operação inválida/i.test(error.message))throw error;onlinePoll=false;onlineFp='';}}return rpc('jtp_online_state');}
+async function fetchState(force=false){const state=await fetchOnline(force);try{const p=await rpc('jtp_rotativo_poll',{fp:force?'':rotFp});rotFp=p.fp;if(p.changed)rotCache=p.rotativos||[];}catch{rotFp='';}state.rotativos=JSON.parse(JSON.stringify(rotCache));return state;}
  async function rotSync(){const st=await fetchState(true);setState(st);if(canPaint())render();}
  const rotRetryable=e=>!e.status||e.status>=500||e.status===408||e.status===429||e.code==='57014'||/timeout/i.test(e.message||'');
  function rotKick(delay=0){clearTimeout(rotTimer);rotTimer=setTimeout(rotFlush,delay);}
