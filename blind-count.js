@@ -1,8 +1,11 @@
 // Contagem às cegas: quem só conta não vê saldo SAP, custo nem desvio.
-// Veem: Admin, Líder de almoxarifado e Gerente.
+// Veem: Admin, Líder de almoxarifado e Gerente. No rotativo do CD (2002) o Almoxarife também vê e finaliza (parte 20 do SQL).
 (function(){
 const SEE=['Admin','Líder de almoxarifado','Gerente'];
-const blind=()=>{try{const u=selectedUser();return !!u&&!SEE.includes(u.role);}catch{return false;}};
+window.jtpRotativoOpen=unit=>{try{const u=selectedUser();return unit==='2002'&&!!u&&u.role==='Almoxarife'&&(u.units||[]).includes('2002');}catch{return false;}};
+function cdRotativo(){if(page!==3)return false;const inv=inventories.find(i=>i.id===selectedInventory);if(inv)return inv.type==='Rotativo'&&jtpRotativoOpen(inv.unit);
+  const u=selectedUser(),f=$('unit')?.value;return jtpRotativoOpen('2002')&&(f==='2002'||(u.units||[]).every(x=>x==='2002'));}
+const blind=()=>{try{const u=selectedUser();return !!u&&!SEE.includes(u.role)&&!cdRotativo();}catch{return false;}};
 const prev=render;
 render=function(){
   prev.apply(this,arguments);

@@ -85,7 +85,7 @@ render=function(){
    const nb=$('new');if(nb)nb.hidden=!leader;
    if(!counter)document.querySelectorAll('.inline-count').forEach(i=>{i.disabled=true;i.title='Seu perfil só consulta o rotativo.';});
    document.querySelectorAll('.inventory-detail .source-note').forEach(n=>{n.textContent='Cada contagem é salva no servidor ao sair do campo e fica visível para toda a equipe. Só líder ou admin finaliza.';});
-   const fin=$('entry-finish'),can=$('entry-cancel');if(!leader){if(fin)fin.hidden=true;if(can)can.hidden=true;}
+   const fin=$('entry-finish'),can=$('entry-cancel'),cdFin=!!(window.jtpRotativoOpen&&jtpRotativoOpen(inventories.find(i=>i.id===selectedInventory)?.unit));if(!leader){if(fin&&!cdFin)fin.hidden=true;if(can)can.hidden=true;}
   }
  }catch(e){}
 };

@@ -8,7 +8,7 @@ const brDate=v=>{const m=String(v||'').match(/^(\d{4})-(\d{2})-(\d{2})/);return 
 const brTime=v=>v?new Date(v).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'—';
 const daysSince=d=>{if(!d)return null;const t=new Date(String(d).slice(0,10)+'T12:00:00'),n=new Date();n.setHours(12,0,0,0);return Math.max(0,Math.round((n-t)/864e5));};
 const pct=r=>r.counted?(r.counted-r.divergent)/r.counted*100:null;
-const blind=()=>selectedUser()?.role==='Almoxarife';
+const blind=()=>selectedUser()?.role==='Almoxarife'&&!(window.jtpRotativoOpen&&jtpRotativoOpen(unitSel));
 async function load(){if(loading)return;loading=true;error='';render();
   try{data=await JTP_RPC('jtp_rotativo_streets');}catch(e){error=/Operação inválida/i.test(e.message)?'Falta rodar a parte 19 do SQL no Supabase.':e.message;}
   finally{loading=false;render();}}
