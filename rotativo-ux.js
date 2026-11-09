@@ -81,7 +81,7 @@ render=function(){
  try{
   markUnits();window.JTP_ROT_MARK();
   if(window.JTP_CLOUD_READY&&page===3){
-   const u=typeof selectedUser==='function'?selectedUser():null,leader=!!u&&(u.role==='Admin'||u.role==='Líder de almoxarifado'),counter=!!u&&(leader||u.role==='Almoxarife');
+   const u=typeof selectedUser==='function'?selectedUser():null,leader=!!u&&(u.role==='Admin'||u.role==='Líder de almoxarifado'),counter=!!u&&(leader||u.role==='Almoxarife'||!!(window.jtpRotativoOpen&&jtpRotativoOpen(inventories.find(i=>i.id===selectedInventory)?.unit)));
    const nb=$('new');if(nb)nb.hidden=!leader;
    if(!counter)document.querySelectorAll('.inline-count').forEach(i=>{i.disabled=true;i.title='Seu perfil só consulta o rotativo.';});
    document.querySelectorAll('.inventory-detail .source-note').forEach(n=>{n.textContent='Cada contagem é salva no servidor ao sair do campo e fica visível para toda a equipe. Só líder ou admin finaliza.';});
