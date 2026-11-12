@@ -14,13 +14,15 @@ async function load(){if(loading)return;loading=true;error='';render();
   finally{loading=false;render();}}
 function unitsAllowed(){const u=selectedUser();return units.filter(x=>u?.role==='Admin'||u?.units?.includes(x.id));}
 function streetsOf(unit){
-  const map=window.jtpDepositMap?jtpDepositMap(unit):{},pos={};
-  (window.JTP_SOURCE?.locations||[]).forEach(l=>{if(l.unit!==unit||!l.address)return;const s=streetOf(l.address);pos[s]=(pos[s]||0)+(l.sku?1:0);});
-  const hist={};(data||[]).filter(r=>r.unit===unit).forEach(r=>{(hist[r.street]=hist[r.street]||[]).push(r);});
+  // "1" e "01" são a mesma rua (o padrão novo do WMS usa 01.01.01.01; rotativos antigos do CD gravaram "1")
+  const nk=s=>/^\d+$/.test(s)?String(Number(s)):String(s).trim().toUpperCase(),map={},pos={},label={};
+  Object.entries(window.jtpDepositMap?jtpDepositMap(unit):{}).forEach(([s,d])=>{map[nk(s)]=d;});
+  (window.JTP_SOURCE?.locations||[]).forEach(l=>{if(l.unit!==unit||!l.address)return;const s=streetOf(l.address),k=nk(s);label[k]=label[k]||s;pos[k]=(pos[k]||0)+(l.sku?1:0);});
+  const hist={};(data||[]).filter(r=>r.unit===unit).forEach(r=>{const k=nk(r.street);label[k]=label[k]||r.street;(hist[k]=hist[k]||[]).push(r);});
   const names=[...new Set([...Object.keys(pos),...Object.keys(hist)])];
-  return names.map(street=>{const list=(hist[street]||[]).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))||String(b.startedAt).localeCompare(String(a.startedAt)));
+  return names.map(key=>{const street=label[key]||key,list=(hist[key]||[]).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))||String(b.startedAt).localeCompare(String(a.startedAt)));
     const last=list.find(r=>r.status==='Concluído'),open=list.find(r=>r.status==='Em andamento');
-    return {street,dep:map[street]||'',positions:pos[street]||0,list,last,open,days:last?daysSince(last.date):null};});
+    return {street,dep:map[key]||'',positions:pos[key]||0,list,last,open,days:last?daysSince(last.date):null};});
 }
 function panel(){
   const allowed=unitsAllowed();if(!unitSel||!allowed.some(u=>u.id===unitSel)){const g=$('unit')?.value;unitSel=allowed.some(u=>u.id===g)?g:(allowed.find(u=>u.id==='2002')||allowed[0])?.id||'';}

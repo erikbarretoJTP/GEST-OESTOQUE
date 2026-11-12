@@ -8,7 +8,9 @@ const byStreet=(a,b)=>String(a).localeCompare(String(b),'pt-BR',{numeric:true});
 // rua -> depósito, pelo WMS em uso (depósito mais frequente da rua)
 function depositMap(unit){const count={},map={};
   (window.JTP_SOURCE?.locations||[]).forEach(l=>{if(l.unit!==unit||!l.area)return;const st=streetOf(l.address);(count[st]=count[st]||{})[l.area]=(count[st][l.area]||0)+1;});
-  Object.keys(count).forEach(st=>{map[st]=Object.entries(count[st]).sort((a,b)=>b[1]-a[1])[0][0];});return map;}
+  Object.keys(count).forEach(st=>{map[st]=Object.entries(count[st]).sort((a,b)=>b[1]-a[1])[0][0];});
+  // rua "02" (padrão novo) também responde por "2" (endereços antigos, ex.: rotativos já abertos)
+  Object.keys(map).forEach(st=>{if(/^\d+$/.test(st)){const n=String(Number(st));if(!(n in map))map[n]=map[st];}});return map;}
 window.jtpDepositMap=depositMap;
 const firstAddress=txt=>String(txt||'').split(' · ').map(s=>s.trim()).filter(Boolean).sort(byStreet)[0]||'';
 // grupos de ruas por depósito, na ordem da menor rua de cada um

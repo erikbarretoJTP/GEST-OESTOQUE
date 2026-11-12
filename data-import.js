@@ -64,8 +64,20 @@ async function parseSaldos(fileList){
 }
 // ---------- leitura: WMS ----------
 const depositName=v=>{const t=String(v??'').trim().toUpperCase().replace(/\s+/g,' ').replace(/\b0+(\d)/g,'$1');return /[A-ZÀ-Ý]/.test(t)?t:'';};
+// Padrão novo (WMS - <Garagem> - Padronizado.xlsx): aba Localização com cabeçalho Área · Rua · Prédio · Andar · Apto · Endereço · SKU.
+const colLetter=i=>{let s='';i++;while(i>0){const m=(i-1)%26;s=String.fromCharCode(65+m)+s;i=Math.floor((i-1)/26);}return s;};
+const normHead=v=>String(v??'').normalize('NFD').replace(/[̀-ͯ]/g,'').trim().toUpperCase();
+function wmsStandard(wb){
+  for(const name of wb.SheetNames){const rows=sheetRows(wb.Sheets[name]).slice(0,15);
+    for(let i=0;i<rows.length;i++){const h=(rows[i]||[]).map(normHead),a=h.indexOf('ENDERECO'),k=h.indexOf('SKU');
+      if(a>=0&&k>=0){const parts=['RUA','PREDIO','ANDAR','APTO'].map(x=>h.indexOf(x));
+        return {sheet:name,start:i+2,addr:colLetter(a),sku:colLetter(k),area:h.indexOf('AREA')>=0?colLetter(h.indexOf('AREA')):'',parts:parts.every(x=>x>=0)?parts:null,title:String((rows[0]||[]).find(v=>v)||'')};}}}
+  return null;}
+const WMS_UNIT=[[/BRAGAN/,'300'],[/PORTO VELHO|PVH/,'200'],[/EMBU/,'400'],[/RIO BRANCO/,'123'],[/CENTRO DE DISTRIB|(^|[^A-Z])CD([^A-Z]|$)/,'2002']];
+function wmsUnitOf(text){const t=normHead(text);return (WMS_UNIT.find(([re])=>re.test(t))||[])[1]||'';}
 async function parseWms(file,unit,opt){
-  const wb=await readBook(file),cfg=Object.assign({},WMS_CFG[unit]||{sheet:'Localização',start:2,addr:'G',sku:'H'},opt||{});
+  const wb=await readBook(file),std=wmsStandard(wb),cfg=std?Object.assign({},std):Object.assign({},WMS_CFG[unit]||{sheet:'Localização',start:2,addr:'G',sku:'H'},opt||{});
+  if(std){const u=wmsUnitOf(std.title)||wmsUnitOf(file.name);if(u)unit=u;}
   const byName=x=>x&&(wb.SheetNames.find(n=>n===x)||wb.SheetNames.find(n=>n.trim().toLowerCase()===String(x).toLowerCase()));
   const name=byName(cfg.sheet)||byName(cfg.alt)||(wb.SheetNames.length===1?wb.SheetNames[0]:null);
   if(!name)throw Error('Aba "'+cfg.sheet+'" não encontrada. Abas do arquivo: '+wb.SheetNames.join(', ')+'. Ajuste o nome da aba em "Ajustes".');
@@ -77,7 +89,9 @@ async function parseWms(file,unit,opt){
     const addrErr=cellError(i,ac),skuErr=cellError(i,sc);
     if(addrErr&&r&&code(r[sc])){errors.push('Linha '+rn+': endereço com erro '+addrErr+' na coluna '+cfg.addr+' · código '+code(r[sc]));return;}
     if(skuErr&&r&&ADDR.test(String(r[ac]??'').trim())){errors.push('Linha '+rn+': código com erro '+skuErr+' na coluna '+cfg.sku+' · endereço '+String(r[ac]).trim());return;}
-    if(!r)return;const address=String(r[ac]??'').trim(),sku=code(r[sc]);if(!address)return;
+    if(!r)return;let address=String(r[ac]??'').trim();const sku=code(r[sc]);
+    // Endereço é fórmula na planilha padronizada: se veio sem valor calculado, monta com Rua.Prédio.Andar.Apto
+    if(!address&&cfg.parts){const p=cfg.parts.map(c=>r[c]);if(p.every(v=>v!==null&&v!==undefined&&String(v).trim()!==''))address=p.map(v=>/^\d+$/.test(String(v).trim())?String(v).trim().padStart(2,'0'):String(v).trim()).join('.');}if(!address||/^0+(\.0+)+$/.test(address))return;
     if(!ADDR.test(address)){if(sku||/\d.*\./.test(address))errors.push('Linha '+rn+': endereço inválido "'+address+'"');return;}
     const area=arc>=0?depositName(r[arc]):'';out.push(area?[address,sku,area]:[address,sku]);if(area)areas[area]=(areas[area]||0)+1;seen[address]=(seen[address]||0)+1;if(sku)(mapping[sku]=mapping[sku]||new Set()).add(address);
   });
@@ -86,7 +100,7 @@ async function parseWms(file,unit,opt){
   const positions=Object.keys(seen),occupied=new Set(out.filter(r=>r[1]).map(r=>r[0]));
   const codes=Object.keys(mapping),now=currentCount('wms',unit),oldCodes=new Set(window.JTP_SOURCE.locations.filter(l=>l.unit===unit&&l.sku).map(l=>l.sku));
   if(oldCodes.size&&codes.length<oldCodes.size*.75)errors.push('Os códigos caíram de '+oldCodes.size+' para '+codes.length+'. Confira se é o arquivo certo.');
-  return{file:file.name,unit,sheet:name,date,rows:out,areas,positions:positions.length,occupied:occupied.size,vacant:positions.length-occupied.size,codes:codes.length,multi:codes.filter(c=>mapping[c].size>1).length,repeated:positions.filter(a=>seen[a]>1).length,now,errors};
+  return{file:file.name,unit,sheet:name,date,std:!!std,rows:out,areas,positions:positions.length,occupied:occupied.size,vacant:positions.length-occupied.size,codes:codes.length,multi:codes.filter(c=>mapping[c].size>1).length,repeated:positions.filter(a=>seen[a]>1).length,now,errors};
 }
 // ---------- leitura: DF-e (notas emitidas para a garagem) ----------
 const DFE_UNIT=[[/BRAGAN/,'300'],[/PORTO VELHO/,'200'],[/EMBU/,'400'],[/RIO BRANCO/,'123']];
@@ -143,7 +157,7 @@ async function publishSaldo(){
 }
 async function publishDfe(){const r=st.dfe;if(!r||r.errors.length)return;
   for(let i=0;i<r.docs.length;i+=1000)await JTP_RPC('jtp_dfe_put',{p:{branch:r.unit,source:r.file,docs:r.docs.slice(i,i+1000)}});}
-async function publishWms(){const r=st.wms;if(!r||r.errors.length)return;await put('wms',r.unit,{date:r.date,sheet:r.sheet,rows:r.rows},{file:r.file,date:r.date,rows:r.rows.length,positions:r.positions,codes:r.codes,by:selectedUser()?.name||''});}
+async function publishWms(r=st.wms){if(!r||r.errors.length)return;await put('wms',r.unit,{date:r.date,sheet:r.sheet,rows:r.rows},{file:r.file,date:r.date,rows:r.rows.length,positions:r.positions,codes:r.codes,by:selectedUser()?.name||''});}
 async function publishCat(){const r=st.cat;if(!r||r.errors.length)return;await put('catalog','*',r.diff,{file:r.file,total:r.total,added:r.added,changed:r.changed,by:selectedUser()?.name||''});}
 
 
@@ -230,7 +244,10 @@ function dfePreview(){const r=st.dfe;if(!r)return '';const p=v=>v==null?'—':v.
    +(r.detected?'':`<p class="source-note">Garagem não reconhecida pela coluna "Empresa": confira a garagem escolhida acima.</p>`)
    +`<p class="source-note">Notas já importadas antes são atualizadas pela chave (ex.: pendente que recebeu entrada).</p>`
    +errs(r.errors)+`<div class="actions"><button class="primary" id="imp-dfe-go" ${r.errors.length?'disabled':''}>Publicar ${num(r.docs.length)} notas de ${esc(NAMES[r.unit]||r.unit)}</button></div>`;}
-function wmsPreview(){const r=st.wms;if(!r)return '';
+function wmsManyPreview(){const l=st.wmsMany;if(!l)return '';const ok=l.filter(r=>!r.errors.length);
+  return table(['GARAGEM','ARQUIVO','POSIÇÕES','OCUPADAS','CÓDIGOS','DEPÓSITOS','SITUAÇÃO'],l.map(r=>`<tr><td><b>${esc(r.unit?r.unit+' · '+NAMES[r.unit]:'Não reconhecida')}</b></td><td>${esc(r.file)}<small>${r.std?'padrão novo':'layout antigo'} · aba ${esc(r.sheet||'—')}</small></td><td>${num(r.positions||0)}<small>antes ${num(r.now||0)}</small></td><td>${num(r.occupied||0)}</td><td>${num(r.codes||0)}</td><td>${esc(Object.keys(r.areas||{}).sort().join(', ')||'—')}</td><td>${r.errors.length?'<span class="imp-msg err">'+esc(r.errors.join(' · '))+'</span>':'OK'}</td></tr>`))
+   +`<div class="actions"><button class="primary" id="imp-wms-all" ${ok.length?'':'disabled'}>Publicar ${ok.length} ${ok.length===1?'garagem':'garagens'}${ok.length<l.length?' (as com erro ficam de fora)':''}</button></div>`;}
+function wmsPreview(){if(st.wmsMany)return wmsManyPreview();const r=st.wms;if(!r)return '';
   return `<div class="imp-sum"><b>${esc(r.file)}</b> · aba ${esc(r.sheet)}${r.date?' · data '+esc(r.date):''}</div>`+table(['POSIÇÕES','OCUPADAS','VAGAS','CÓDIGOS','COM MAIS DE 1 ENDEREÇO','LINHAS ATUAIS'],[`<tr><td>${num(r.positions)}</td><td>${num(r.occupied)}</td><td>${num(r.vacant)}</td><td>${num(r.codes)}</td><td>${num(r.multi)}</td><td>${num(r.now||0)}</td></tr>`])+(Object.keys(r.areas||{}).length?`<p class="source-note">Depósitos (coluna Estoque): ${Object.keys(r.areas).sort().map(k=>esc(k)+' · '+num(r.areas[k])).join(' | ')} posições.</p>`:'')+errs(r.errors)+`<div class="actions"><button class="primary" id="imp-wms-go" ${r.errors.length?'disabled':''}>Publicar WMS de ${esc(NAMES[r.unit])}</button></div>`;}
 function catPreview(){const r=st.cat;if(!r)return '';
   return `<div class="imp-sum"><b>${esc(r.file)}</b> · ${num(r.total)} itens</div>`+table(['NOVOS','DESCRIÇÃO ALTERADA','SEM DESCRIÇÃO (IGNORADOS)'],[`<tr><td>${num(r.added)}</td><td>${num(r.changed)}</td><td>${num(r.blank)}</td></tr>`])+errs(r.errors)+`<div class="actions"><button class="primary" id="imp-cat-go" ${r.errors.length?'disabled':''}>Publicar lista de itens</button></div>`;}
@@ -243,8 +260,8 @@ function html(){
   return panel('Dados em uso','O que o site está usando agora, por garagem',statusTable())
   +panel('1 · Saldo em estoque (SAP)','Relatório "Saldo JTP" em Excel · atualiza todas as garagens do arquivo',
     `<input type="file" id="imp-saldo-file" accept=".xlsx,.xlsm" multiple><p class="source-note">Pode escolher vários dias de uma vez: o mais recente vira o saldo atual e os outros entram no histórico de valor.</p>${msg('saldo')}<div id="imp-saldo-prev">${saldoPreview()}</div>`)
-  +panel('2 · Mapa WMS','Uma garagem por vez · planilha oficial do WMS',
-    `<div class="imp-row"><label>GARAGEM<select id="imp-wms-unit">${UNITS.map(u=>`<option value="${u}" ${u===st.wmsUnit?'selected':''}>${u} · ${esc(NAMES[u])}</option>`).join('')}</select></label><label>ARQUIVO<input type="file" id="imp-wms-file" accept=".xlsx,.xlsm"></label></div>
+  +panel('2 · Mapa WMS','Planilha padronizada do WMS · pode escolher as 5 garagens de uma vez (a garagem é reconhecida pelo arquivo)',
+    `<div class="imp-row"><label>GARAGEM<select id="imp-wms-unit">${UNITS.map(u=>`<option value="${u}" ${u===st.wmsUnit?'selected':''}>${u} · ${esc(NAMES[u])}</option>`).join('')}</select></label><label>ARQUIVO(S)<input type="file" id="imp-wms-file" accept=".xlsx,.xlsm" multiple></label></div>
      <details class="imp-adv"><summary>Ajustes do layout (só se a planilha mudou)</summary><div class="imp-row"><label>ABA<input id="imp-sheet" value="${esc(w.sheet||'')}"></label><label>LINHA INICIAL<input id="imp-start" type="number" min="1" value="${w.start||2}"></label><label>COLUNA DO ENDEREÇO<input id="imp-addr" maxlength="2" value="${esc(w.addr||'G')}"></label><label>COLUNA DO CÓDIGO<input id="imp-sku" maxlength="2" value="${esc(w.sku||'H')}"></label><label>COLUNA DO ESTOQUE (opcional)<input id="imp-area" maxlength="2" placeholder="ex.: H" value="${esc(w.area||'')}"></label></div></details>
      ${msg('wms')}<div id="imp-wms-prev">${wmsPreview()}</div>`)
   +panel('3 · Lista de itens (descrições)','Relatório com "Nº do item" e "Descrição do item" · só entram itens novos ou alterados',
@@ -262,7 +279,12 @@ function bind(){
   const run=async(key,fn,okText)=>{if(st.busy)return;st.busy=true;st.msg[key]={t:'Processando…',err:false};paint();try{await fn();if(!st.msg[key]||st.msg[key].t==='Processando…')st.msg[key]={t:okText||'Pronto.',err:false};}catch(e){st.msg[key]={t:e.message||'Falha.',err:true};}finally{st.busy=false;paint();}};
   $('imp-saldo-file').onchange=e=>{const fl=[...e.target.files];if(!fl.length)return;st.saldo=null;run('saldo',async()=>{st.saldo=await parseSaldos(fl);},'Arquivo(s) lido(s). Confira o resumo e publique.');};
   $('imp-wms-unit').onchange=e=>{st.wmsUnit=e.target.value;st.wms=null;st.wmsFile=null;st.skipRestore=true;paint();st.skipRestore=false;};
-  $('imp-wms-file').onchange=e=>{const f=e.target.files[0];if(!f)return;st.wms=null;st.wmsFile=f;run('wms',async()=>{st.wms=await parseWms(f,st.wmsUnit,wmsOpts());},'Arquivo lido. Confira o resumo e publique.');};
+  $('imp-wms-file').onchange=e=>{const fl=[...e.target.files];if(!fl.length)return;st.wms=null;st.wmsMany=null;
+    if(fl.length===1){const f=fl[0];st.wmsFile=f;run('wms',async()=>{st.wms=await parseWms(f,st.wmsUnit,wmsOpts());st.wmsUnit=st.wms.unit;},'Arquivo lido. Confira o resumo e publique.');return;}
+    st.wmsFile=null;run('wms',async()=>{const out=[];
+      for(const f of fl){try{const r=await parseWms(f,'',{});if(!r.std)r.errors.push('Não está no padrão novo (aba Localização com Endereço e SKU): importe este sozinho');out.push(r);}catch(err){out.push({file:f.name,unit:'',errors:[err.message]});}}
+      const seen={};out.forEach(r=>{if(!r.unit){if(!r.errors.length)r.errors.push('Garagem não reconhecida pelo arquivo');return;}if(seen[r.unit])r.errors.push('Mesma garagem em mais de um arquivo');seen[r.unit]=1;});
+      st.wmsMany=out;},'Arquivos lidos. Confira cada garagem e publique.');};
   ['imp-sheet','imp-start','imp-addr','imp-sku','imp-area'].forEach(id=>{$(id).onchange=()=>{if(st.wmsFile)run('wms',async()=>{st.wms=await parseWms(st.wmsFile,st.wmsUnit,wmsOpts());},'Arquivo lido de novo com os ajustes.');};});
   $('imp-cat-file').onchange=e=>{const f=e.target.files[0];if(!f)return;st.cat=null;run('cat',async()=>{st.cat=await parseCat(f);},'Arquivo lido. Confira o resumo e publique.');};
   $('imp-adj-unit').onchange=e=>{st.adjUnit=e.target.value;if(st.adjFile)run('adj',async()=>{st.adj=await parseAdj(st.adjFile,st.adjUnit);});};
@@ -274,6 +296,7 @@ function bind(){
   if($('imp-dfe-go'))$('imp-dfe-go').onclick=()=>run('dfe',async()=>{await publishDfe();st.dfe=null;st.dfeFile=null;await done();},'Notas publicadas. O indicador de entradas já aparece no dashboard.');
   const done=async()=>{await window.JTP_DATA.reload();};
   if($('imp-saldo-go'))$('imp-saldo-go').onclick=()=>{if(st.saldo.latest.units.some(u=>u.drop)&&!$('imp-force')?.checked){st.msg.saldo={t:'Marque a confirmação acima para continuar.',err:true};paint();return;}run('saldo',async()=>{const units=st.saldo.latest.units.map(u=>u.unit);await publishSaldo();st.saldo=null;await done();});};
+  if($('imp-wms-all'))$('imp-wms-all').onclick=()=>run('wms',async()=>{const ok=st.wmsMany.filter(r=>!r.errors.length);for(const r of ok)await publishWms(r);st.wmsMany=null;await done();st.msg.wms={t:'WMS publicado: '+ok.map(r=>NAMES[r.unit]).join(', ')+'. Todos os aparelhos recebem em até 1 minuto.',err:false};});
   if($('imp-wms-go'))$('imp-wms-go').onclick=()=>run('wms',async()=>{await publishWms();st.wms=null;st.wmsFile=null;await done();},'WMS publicado. Todos os aparelhos recebem em até 1 minuto.');
   if($('imp-cat-go'))$('imp-cat-go').onclick=()=>run('cat',async()=>{await publishCat();st.cat=null;await done();},'Lista de itens publicada.');
 }
