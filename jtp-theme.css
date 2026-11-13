@@ -297,3 +297,7 @@ dialog#dialog .dep-group .dep-head{grid-column:1/-1;color:var(--navy);font-size:
 .rot-streets .st-badge{display:inline-block;margin-top:4px;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:600}
 .rot-streets .st-badge.warn{background:#fff4dc;color:#8a6110}
 .rot-streets .st-badge.idle{background:#fbefeb;color:#a04131}
+
+/* Posição SEM ID no rotativo: aparece na lista, sem contagem */
+.semid-row td{background:#f6f3ea!important;color:#7a6a3a}
+.semid-row td b{color:#7a6a3a}

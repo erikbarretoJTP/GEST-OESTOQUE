@@ -3,6 +3,7 @@ function completeWmsInventory(unit){
  const source=window.JTP_SOURCE,stock=new Map(items.filter(i=>i.unit===unit).map(i=>[String(i.sku),i])),catalog=window.JTP_COUNT_UNITS||{},lines=new Map(),positions=[];
  for(const loc of (source?.locations||[]).filter(l=>l.unit===unit)){
   const address=String(loc.address||'').trim();if(!address)continue;
+  if(loc.semId){positions.push({address,sku:null,name:'SEM ID · posição sem código cadastrado · não contar',order:positions.length});continue;}
   const sku=loc.sku?String(loc.sku):null;positions.push({address,sku,name:loc.name||'',order:positions.length});
   if(!sku)continue;let line=lines.get(sku);if(!line){const ref=stock.get(sku),any=items.find(i=>String(i.sku)===sku&&i.measure),measure=ref?.measure||any?.measure||catalog[sku]||'UN';line={sku,name:ref?.name||loc.name||sku,addresses:[],group:ref?.group||loc.group||'',measure,balance:ref?.qty??0,cost:ref?.price??0,unitUnconfirmed:!ref?.measure&&!any?.measure&&!catalog[sku],noStockReference:!ref};lines.set(sku,line);}if(!line.addresses.includes(address))line.addresses.push(address);
  }
@@ -20,7 +21,7 @@ function assignedWmsRows(inv,a,query=''){
  }
  return rows;
 }
-function wmsTaskRow(inv,row,a,actor){if(!row.empty&&!row.alias&&row.line)return taskRow(inv,row.line,row.index,a,a.members.includes(actor.id),row.address);return `<tr><td><span class="allocation-code">${esc(row.address)}</span></td><td><span class="count-item-code">${esc(row.sku||'')}</span><small>${esc(row.empty?'Sem item cadastrado':row.name||row.line?.name||'')}</small></td><td><small>${row.empty?'Posição sem código na planilha WMS':row.line?'Item em mais de uma posição · quantidade total no primeiro endereço do item':'Item contado pela dupla do endereço principal'}</small></td></tr>`;}
+function wmsTaskRow(inv,row,a,actor){if(!row.empty&&!row.alias&&row.line)return taskRow(inv,row.line,row.index,a,a.members.includes(actor.id),row.address);return `<tr><td><span class="allocation-code">${esc(row.address)}</span></td><td><span class="count-item-code">${esc(row.sku||'')}</span><small>${esc(row.empty?(row.name||'Sem item cadastrado'):row.name||row.line?.name||'')}</small></td><td><small>${row.empty?'Posição sem código na planilha WMS':row.line?'Item em mais de uma posição · quantidade total no primeiro endereço do item':'Item contado pela dupla do endereço principal'}</small></td></tr>`;}
 
 // Aplica apenas os nomes do catálogo; preserva contagens e alocações.
 const renderBeforeItemDescriptions=render;

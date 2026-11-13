@@ -91,3 +91,27 @@ render=function(){
 };
 render();
 })();
+
+// Posições "SEM ID" do WMS: aparecem na lista do rotativo, na ordem do endereço, sem campo de quantidade (não são contadas).
+(function(){
+const nat=(a,b)=>String(a).localeCompare(String(b),'pt-BR',{numeric:true,sensitivity:'base'});
+const rk=s=>/^\d+$/.test(String(s))?String(Number(s)):String(s||'').trim().toUpperCase();
+const prev=render;
+render=function(){
+  prev.apply(this,arguments);
+  try{
+    if(page!==3)return;const inv=inventories.find(i=>i.id===selectedInventory);if(!inv||inv.type!=='Rotativo')return;
+    const q=String($('entry-search')?.value||'').toLowerCase();
+    const sem=(window.JTP_SOURCE?.locations||[]).filter(l=>l.unit===inv.unit&&l.semId&&rk(String(l.address).split(/[.-]/)[0])===rk(inv.street)&&(!q||(l.address+' sem id').toLowerCase().includes(q))).map(l=>l.address).sort(nat);
+    const codes=[...document.querySelectorAll('#content .inventory-detail tbody .allocation-code')];if(!sem.length||!codes.length)return;
+    const table=codes[0].closest('table'),cols=[...table.querySelectorAll('thead th')].filter(th=>th.style.display!=='none').length;
+    const rows=codes.map(c=>({tr:c.closest('tr'),addr:String(c.textContent).split(' · ').map(x=>x.trim()).sort(nat)[0]}));
+    const pageTxt=$('content').querySelector('.pagination span')?.textContent||'1 / 1',[pg,pages]=pageTxt.split('/').map(x=>Number(x.trim())||1);
+    const lo=pg===1?null:rows[0].addr,hi=pg===pages?null:rows[rows.length-1].addr;
+    sem.filter(a=>(lo===null||nat(a,lo)>=0)&&(hi===null||nat(a,hi)<=0)).forEach(a=>{
+      const tr=document.createElement('tr');tr.className='semid-row';
+      tr.innerHTML=`<td><span class="allocation-code">${esc(a)}</span></td><td><b>SEM ID</b><small>Posição sem código cadastrado no WMS · não contar</small></td><td colspan="${Math.max(1,cols-2)}"><small>Não é contado no rotativo</small></td>`;
+      const after=rows.find(r=>nat(r.addr,a)>0);if(after)after.tr.before(tr);else rows[rows.length-1].tr.after(tr);});
+  }catch(e){}
+};
+})();
